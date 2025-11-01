@@ -1,0 +1,48 @@
+%% MonitorModule mermaid class diagram
+classDiagram
+    class MonitorManager {
+        +recipe_loader: RecipeLoader
+        +output_root
+        +_instances
+        +list_available_recipes()
+        +list_running_monitors()
+        +start_monitor(recipe_name, targets, metadata, mode)
+        +stop_monitor(monitor_id)
+        +export_metrics(monitor_id, output)
+        +deploy_prometheus(instance)
+        +shutdown()
+    }
+    class RecipeLoader {
+        +load_recipe(name)
+        +list_available_recipes()
+        +validate_recipe(recipe)
+        +get_recipe_info(name)
+        +create_recipe_template(name)
+    }
+    class MonitorRecipe {
+        +name
+        +collection_interval_seconds
+        +prometheus_config
+        +validate()
+    }
+    class MonitorInstance {
+        +id
+        +recipe
+        +status
+        +targets
+        +metadata
+        +to_dict()
+        +is_healthy()
+    }
+    class PrometheusClient {
+        +deploy(targets, config)
+        +stop(instance)
+        +query(instance, query)
+        +start(prometheus_bin, config_path)
+        +stop()
+        +url
+    }
+    MonitorManager --> MonitorInstance
+    MonitorManager --> MonitorRecipe
+    MonitorManager --> RecipeLoader
+    MonitorManager --> PrometheusClient

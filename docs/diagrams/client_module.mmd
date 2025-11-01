@@ -1,0 +1,50 @@
+%% ClientModule mermaid class diagram
+classDiagram
+    class ClientManager {
+        +recipe_loader: RecipeLoader
+        +clients: Dict[str, ClientRun]
+        -orchestator: ClientOrchestrator
+        +add_client(name, config)
+        +remove_client(name)
+        +list_available_clients()
+        +get_client(name)
+        +run_bench(name, runs=1)
+        +stop_all()
+        +collect_metrics()
+    }
+    class RecipeLoader {
+        +load_recipe(name)
+        +list_available_recipes()
+        +validate_recipe(recipe)
+        +get_recipe_info(name)
+        +create_recipe_template(name)
+    }
+    class ClientRecipe {
+        +name
+        +image
+        +resources
+        +endpoints
+        +ports
+        +validate()
+    }
+    class ClientInstance {
+        +id
+        +recipe_name
+        +orchestrator_handle
+        +endpoints
+        +status
+        +to_dict()
+        +get_metrics()
+        +update_status(status)
+        +start()
+        +stop()
+    }
+    class ClientOrchestrator {
+        +submit(run)
+        +stop(job_id)
+        +status(job_id)
+    }
+    ClientManager --> ClientInstance
+    ClientManager --> ClientRecipe
+    ClientManager --> RecipeLoader
+    ClientManager --> ClientOrchestrator

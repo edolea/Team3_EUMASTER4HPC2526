@@ -1,0 +1,52 @@
+name: chroma-client
+description: "Client recipe for benchmarking a Chroma vector-database endpoint (embedding / query throughput)."
+image: docker://chromadb/chroma:latest
+
+target:
+  service: chroma
+  protocol: http
+  endpoint: "http://localhost:8000" # Change
+  path: "/collections/default/query"
+  timeout_seconds: 30
+  port: 8000
+
+workload:
+  pattern: closed-loop
+  duration_seconds: 60
+  concurrent_users: 1
+  think_time_ms: 50
+  requests_per_user: 100
+
+dataset:
+  type: synthetic
+  params:
+    embedding_dim: 1536
+    num_vectors: 1000
+    query_size: 10
+    query_top_k: 10
+
+orchestration:
+  resources:
+    cpu_cores: 1
+    memory_gb: 2
+
+dataset:
+  type: synthetic
+  params:
+    embedding_dim: 1536
+    num_vectors: 1000
+    query_size: 10
+    query_top_k: 10
+
+
+payload:
+  query: "example query text"
+  n_results: 10
+
+output:
+  metrics:
+    - latency
+    - throughput
+    - errors
+  format: json
+  destination: "./results/chroma"

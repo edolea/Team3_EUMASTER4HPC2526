@@ -2,99 +2,212 @@
 
 The objective of this challenge is to prepare students for the upcoming AI Factories in the European Union. These AI Factories will harness the power of next-generation HPC and AI systems to revolutionise data processing, analytics, and model deployment. Through this challenge, students will gain practical skills in AI benchmarking, system monitoring, and real-world deployment scenarios—equipping them to design and operate future AI Factory workflows at scale.
 
-# Global plan of the challenge
+## Setup
 
-The challenge will span 4 months, with students organised into teams. It follows these steps:
+We recommend using a conda environment. A conda environment file is provided at the repository root: `benchmark.env`.
 
-## Phase 1 :
+Create and activate the environment:
 
-### Onboarding
+```bash
+conda env create -f benchmark.env
+conda activate benchmark
+```
 
-- Introduction to MeluXina and best practices for research and commercial HPC use.
-- Familiarisation with Slurm, storage systems, and monitoring tools.
-- Exploration & Adoption: In-depth exploration of the assigned topic.
-- Define objectives, identify tools and methodologies, and clarify performance metrics.
+## How to run
 
-### What to do:
+This tool is designed to be used via `main.py` from the repository root:
 
-- Create your own project github (public) and configure it with milestones
-- Comment on the issue 1 (https://github.com/LuxProvide/EUMASTER4HPC2526/issues/1 ) to mention your github URL
-- Do the onboaring and the examples on meluxina
-- Load the example's result/log files on your github
-- Schedule meetings (within the group and brainstorm the project)
-- Define clear design, identify the tech stacks, create issues on your gitLab
+```bash
+python main.py <command> [options]
+```
 
-### What I need to look to at the end of the phase:
+Common commands (examples — `main.py` will provide `--help`):
 
-- Your github
-- The logs of the example (per user)
-- The design (README file)
-- The issues & tasks
+- `run --config <path>` — execute a benchmark described by a YAML client recipe
+- `list-recipes` — list available recipes
+- `export-metrics --output <file.json>` — collect and save metrics
+- TODO: add others
 
+Example (run the provided Chroma recipe):
 
-## Phase 2 :
+```bash
+python main.py run --recipe recipes/clients/chroma.yaml
+```
 
--Prototyping: Development of applications, monitoring dashboards, or benchmarking scripts.
--Iterative testing and validation.
+Output: a JSON metrics file will be produced and the console will show a short summary (total requests, successes, errors, latency stats, throughput).
 
-## Phase 3:
+## Recipes
 
-- Evaluation & Testing: Deployment on MeluXina at realistic scales.
-- Performance measurements, resource usage profiling, and scalability testing.
-- Report Building: Documentation of methodologies, results, and recommended best practices.
-- Creation of comprehensive final reports.
+Benchmark and service recipes use YAML. Example client recipes are provided under `recipes/clients/` (for example `chroma.yaml`). Recipes declare the same attributes used by the reference implementation: `name`, `description`, `target` (service, protocol, endpoint/path, timeout), `workload` (pattern, duration_seconds, concurrent_users, think_time_ms, requests_per_user), `dataset`, `orchestration`, `headers`, `payload`, and `output`.
 
-## Phase 4:
+## Architecture
 
--Defense: Each team will present their results and defend their findings in a final session.
-Q&A and feedback for improvement.
+#### Client module
 
-# Challenge topics: Developing a global benchmarking framework for AI Factory workloads
+```mermaid
+%% ClientModule mermaid class diagram
+classDiagram
+  class ClientManager {
+    +recipe_loader: RecipeLoader
+    +clients: Dict[str, ClientRun]
+    -orchestator: ClientOrchestrator
+    +add_client(name, config)
+    +remove_client(name)
+    +list_available_clients()
+    +get_client(name)
+    +run_bench(name, runs=1)
+    +stop_all()
+    +collect_metrics()
+  }
+  class RecipeLoader {
+    +load_recipe(name)
+    +list_available_recipes()
+    +validate_recipe(recipe)
+    +get_recipe_info(name)
+    +create_recipe_template(name)
+  }
+  class ClientRecipe {
+    +name
+    +image
+    +resources
+    +endpoints
+    +ports
+    +validate()
+  }
+  class ClientInstance {
+    +id
+    +recipe_name
+    +orchestrator_handle
+    +endpoints
+    +status
+    +to_dict()
+    +get_metrics()
+    +update_status(status)
+    +start()
+    +stop()
+  }
+  class ClientOrchestrator {
+    +submit(run)
+    +stop(job_id)
+    +status(job_id)
+  }
+  ClientManager --> ClientInstance
+  ClientManager --> ClientRecipe
+  ClientManager --> RecipeLoader
+  ClientManager --> ClientOrchestrator
+```
 
-## Objectives
+#### Server module
 
-Design and implement a unified benchmarking framework to evaluate end-to-end performance for critical AI Factory components.
-Include benchmarks for:
+```mermaid
+%% ServerModule mermaid class diagram
+classDiagram
+  class ServerManager {
+    -recipe_loader: RecipeLoader
+    -orchestrator: ServerOrchestrator
+    +start_service(recipe_name, config)
+    +stop_service(service_id)
+    +list_available_services()
+    +list_running_services()
+    +get_service_status(service_id)
+    +check_service_health(service_id)
+    +get_service_logs(service_id)
+    +shutdown()
+  }
+  class RecipeLoader {
+    +load_recipe(name)
+    +list_available_recipes()
+    +validate_recipe(recipe)
+    +get_recipe_info(name)
+    +create_recipe_template(name)
+  }
+  class ServiceRecipe {
+    +name
+    +image
+    +resources
+    +endpoints
+    +ports
+    +validate()
+  }
+  class ServerInstance {
+    +id
+    -recipe
+    +orchestrator_handle
+    +status
+    +endpoints
+    +to_dict()
+    +get_metrics()
+    +restart()
+    +update_status(status)
+    +is_healthy()
+  }
+  class ServerOrchestrator {
+    +deploy_service(recipe)
+    +stop_service(handle)
+    +get_service_status(handle)
+    +get_service_logs(handle)
+  }
+  ServerManager --> ServerInstance
+  ServerManager --> ServiceRecipe
+  ServerManager --> RecipeLoader
+  ServerManager --> ServerOrchestrator
+```
 
-- File storage, relational databases (e.g., PostgreSQL), and object storage (e.g., S3)
-- Inference servers (vLLM, Triton, etc.)
-- Vector databases (Chroma, Faiss, Milvus, Weaviate)
-- Enable reproducible, modular benchmarking scenarios using Slurm orchestration.
-- Provide comparative insights, performance guidelines, and scalability assessments.
+#### Monitor module
 
-## Timeline
+```mermaid
+%% MonitorModule mermaid class diagram
+classDiagram
+  class MonitorManager {
+    +recipe_loader: RecipeLoader
+    +output_root
+    +_instances
+    +list_available_recipes()
+    +list_running_monitors()
+    +start_monitor(recipe_name, targets, metadata, mode)
+    +stop_monitor(monitor_id)
+    +export_metrics(monitor_id, output)
+    +deploy_prometheus(instance)
+    +shutdown()
+  }
+  class RecipeLoader {
+    +load_recipe(name)
+    +list_available_recipes()
+    +validate_recipe(recipe)
+    +get_recipe_info(name)
+    +create_recipe_template(name)
+  }
+  class MonitorRecipe {
+    +name
+    +collection_interval_seconds
+    +prometheus_config
+    +validate()
+  }
+  class MonitorInstance {
+    +id
+    +recipe
+    +status
+    +targets
+    +metadata
+    +to_dict()
+    +is_healthy()
+  }
+  class PrometheusClient {
+    +deploy(targets, config)
+    +stop(instance)
+    +query(instance, query)
+    +start(prometheus_bin, config_path)
+    +stop()
+    +url
+  }
+  MonitorManager --> MonitorInstance
+  MonitorManager --> MonitorRecipe
+  MonitorManager --> RecipeLoader
+  MonitorManager --> PrometheusClient
+```
 
-- Month 1: Analyse MeluXina’s architecture; survey APIs and services for storage, inference, and retrieval; design benchmark framework architecture.
-- Month 2: Develop modular benchmark components:
-    - Generic services deployment : Storage, Inference, Vector DB
-    - Load generators based on Dask/Spark/Slurm for inference and retrieval tasks
-    - Common data schema and metrics collection interface
-- Month 3: Execute benchmarks using Slurm; collect throughput, latency, resource usage, and scaling metrics across all components.
-- Month 4: Integrate results; generate dashboards and comparisons; finalise documentation and present findings.
+## Team 3 — EUMASTER4HPC2526
 
-## Tools & stacks :
-
-- Modular framework using Python, and Slurm
-- Python DB drivers (e.g., psycopg2), S3 SDK for storage benchmarks
-- GPU-accelerated inference servers in containerised environments
-- Dockerised vector DB deployments for scalable search testing
-- Prometheus & Grafana for unified monitoring
-- Slurm for orchestrated, synchronised benchmark execution
-- Supervision & Mentoring
-
-## Supervision by Dr. Farouk Mansouri:
-
-- Dr. Mansouri Farouk will oversee the challenge, providing strategic and technical supervision with a load of 4 hours per month.
-Responsibilities:
-- Overall coordination and alignment with AI Factory vision.
-Weekly progress reviews.
-- Technical deep-dives on HPC practices and system optimisation.
-
-
-## Mentoring:
-
-- Dedicated mentoring sessions will take place one per week for:
-- Technical support and best practices.
--Guidance on tool selection, deployment, and optimisation.
--Assistance with debugging, benchmarking analysis, and report writing.
-Preparation for the final defense.
+- Edoardo Leali
+- Emanuele Caruso
+- Tommaso Crippa

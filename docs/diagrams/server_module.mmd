@@ -1,0 +1,51 @@
+%% ServerModule mermaid class diagram
+classDiagram
+    class ServerManager {
+        -recipe_loader: RecipeLoader
+        -orchestrator: ServerOrchestrator
+        +start_service(recipe_name, config)
+        +stop_service(service_id)
+        +list_available_services()
+        +list_running_services()
+        +get_service_status(service_id)
+        +check_service_health(service_id)
+        +get_service_logs(service_id)
+        +shutdown()
+    }
+    class RecipeLoader {
+        +load_recipe(name)
+        +list_available_recipes()
+        +validate_recipe(recipe)
+        +get_recipe_info(name)
+        +create_recipe_template(name)
+    }
+    class ServiceRecipe {
+        +name
+        +image
+        +resources
+        +endpoints
+        +ports
+        +validate()
+    }
+    class ServerInstance {
+        +id
+        -recipe
+        +orchestrator_handle
+        +status
+        +endpoints
+        +to_dict()
+        +get_metrics()
+        +restart()
+        +update_status(status)
+        +is_healthy()
+    }
+    class ServerOrchestrator {
+        +deploy_service(recipe)
+        +stop_service(handle)
+        +get_service_status(handle)
+        +get_service_logs(handle)
+    }
+    ServerManager --> ServerInstance
+    ServerManager --> ServiceRecipe
+    ServerManager --> RecipeLoader
+    ServerManager --> ServerOrchestrator
