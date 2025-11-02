@@ -2,8 +2,8 @@
 classDiagram
     class ClientManager {
         +recipe_loader: RecipeLoader
-        +clients: Dict[str, ClientRun]
-        -orchestator: ClientOrchestrator
+        +clients: Dict[str, ClientInstance]
+        -orchestrator: ClientOrchestrator
         +add_client(name, config)
         +remove_client(name)
         +list_available_clients()
@@ -21,11 +21,19 @@ classDiagram
     }
     class ClientRecipe {
         +name
+        +target
+        +workload
+        +dataset
+        +orchestration
+        +headers
+        +payload
+        +output
         +image
         +resources
         +endpoints
         +ports
         +validate()
+        +from_yaml(path)
     }
     class ClientInstance {
         +id
@@ -33,6 +41,9 @@ classDiagram
         +orchestrator_handle
         +endpoints
         +status
+        +created_at
+        +completed_at
+        +metrics
         +to_dict()
         +get_metrics()
         +update_status(status)
@@ -40,7 +51,11 @@ classDiagram
         +stop()
     }
     class ClientOrchestrator {
-        +submit(run)
+        +account
+        +partition
+        +qos
+        +time_limit
+        +submit(run, recipe, endpoint)
         +stop(job_id)
         +status(job_id)
     }

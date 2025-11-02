@@ -2,47 +2,34 @@
 
 The objective of this challenge is to prepare students for the upcoming AI Factories in the European Union. These AI Factories will harness the power of next-generation HPC and AI systems to revolutionise data processing, analytics, and model deployment. Through this challenge, students will gain practical skills in AI benchmarking, system monitoring, and real-world deployment scenarios—equipping them to design and operate future AI Factory workflows at scale.
 
+## Quick Start
+
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Create .env file  with your SLURM account details
+# Check out .env.example for info
+nano .env
+
+# 3. Start benchmark (example)
+python -m server run --recipe chroma-server
+python -m client run --recipe chroma-client
+python -m monitor run --output results/chroma.json
+
+```
+
 ## Setup
 
-We recommend using a conda environment. A conda environment file is provided at the repository root: `benchmark.env`.
+### Requirements
 
-Create and activate the environment:
-
-```bash
-conda env create -f benchmark.env
-conda activate benchmark
-```
-
-## How to run
-
-This tool is designed to be used via `main.py` from the repository root:
+Install dependencies:
 
 ```bash
-python main.py <command> [options]
+pip install -r requirements.txt
 ```
 
-Common commands (examples — `main.py` will provide `--help`):
-
-- `run --config <path>` — execute a benchmark described by a YAML client recipe
-- `list-recipes` — list available recipes
-- `export-metrics --output <file.json>` — collect and save metrics
-- TODO: add others
-
-Example (run the provided Chroma recipe):
-
-```bash
-python main.py run --recipe recipes/clients/chroma.yaml
-```
-
-Output: a JSON metrics file will be produced and the console will show a short summary (total requests, successes, errors, latency stats, throughput).
-
-## Recipes
-
-Benchmark and service recipes use YAML. Example client recipes are provided under `recipes/clients/` (for example `chroma.yaml`). Recipes declare the same attributes used by the reference implementation: `name`, `description`, `target` (service, protocol, endpoint/path, timeout), `workload` (pattern, duration_seconds, concurrent_users, think_time_ms, requests_per_user), `dataset`, `orchestration`, `headers`, `payload`, and `output`.
-
-## Architecture
-
-#### Client module
+#### Client Module
 
 ```mermaid
 %% ClientModule mermaid class diagram
