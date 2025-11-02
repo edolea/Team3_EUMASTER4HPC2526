@@ -4,7 +4,7 @@ from .orchestrator import ClientOrchestrator
 
 
 class ClientManager:
-    def __init__(self, recipe_directory='../recipes/clients'):
+    def __init__(self, recipe_directory='recipes/clients'):
         self.recipe_loader = RecipeLoader(recipe_directory=recipe_directory)
         self.clients = {}
         self._orchestrator = None
