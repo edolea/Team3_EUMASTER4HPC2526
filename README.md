@@ -13,10 +13,29 @@ pip install -r requirements.txt
 nano .env
 
 # 3. Start benchmark (example)
-python -m server run --recipe chroma-server
+python -m server run --recipe example-server
 python -m client run --recipe chroma-client
 python -m monitor run --output results/chroma.json
 
+```
+
+### Server CLI quick tour
+
+With the newly implemented server module you can explore the available recipes
+and deploy them via the CLI:
+
+```bash
+# Discover recipes stored under recipes/servers
+python -m server list
+
+# Inspect metadata about a specific recipe
+python -m server info --recipe example-server
+
+# Launch one or more instances using SLURM
+python -m server run --recipe example-server --count 2
+
+# Tear down running instances
+python -m server stop-all
 ```
 
 ## Setup
