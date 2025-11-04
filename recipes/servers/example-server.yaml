@@ -9,5 +9,5 @@ service:
     - 8000
 orchestration:
   resources:
-    cpu_cores: 1
-    memory_gb: 2
+    cpu_cores: 16
+    memory_gb: 16
