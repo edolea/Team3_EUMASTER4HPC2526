@@ -1,0 +1,13 @@
+name: example-server
+description: Example HTTP server served via Python's built-in module
+service:
+  command: python -m http.server 8000
+  working_dir: ./examples/server
+  env:
+    LOG_LEVEL: info
+  ports:
+    - 8000
+orchestration:
+  resources:
+    cpu_cores: 1
+    memory_gb: 2
