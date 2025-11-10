@@ -1,0 +1,79 @@
+name: vllm-server
+description: vLLM single-node inference server for MeluXina
+image: docker://vllm/vllm-openai:v0.6.3.post1
+
+resources:
+  cpu_cores: 8
+  memory_gb: 128
+  gpu_count: 1
+  disk_gb: 200
+  nodes: 1
+  ntasks: 1
+  ntasks_per_node: 1
+  partition: cpu # or gpu if you have access
+  time_limit: "02:00:00"
+
+ports:
+  - container_port: 8000
+    host_port: 8000
+    protocol: tcp
+
+environment:
+  VLLM_HOST: "0.0.0.0"
+  VLLM_PORT: "8000"
+  HF_HOME: "/root/.cache/huggingface"
+  NCCL_DEBUG: "INFO"
+  NCCL_IB_DISABLE: "0"
+  NCCL_SOCKET_IFNAME: "ib0"
+  VLLM_WORKER_MULTIPROC_METHOD: "spawn"
+
+volumes:
+  - host_path: /project/scratch/$SLURM_JOB_ACCOUNT/$USER/vllm
+    container_path: /root/.cache/huggingface
+    readonly: false
+
+healthcheck:
+  endpoint: /health
+  interval_seconds: 20
+  timeout_seconds: 15
+  retries: 3
+  initial_delay: 120
+
+command:
+  - /bin/bash
+  - -c
+  - |
+    set -e
+
+    echo "========================================="
+    echo "vLLM Server Starting"
+    echo "Node: $(hostname)"
+    echo "Port: 8000"
+    echo "========================================="
+
+    echo "Fixing NumPy version conflict..."
+    pip install 'numpy<2.0' --upgrade --quiet --no-cache-dir
+
+    echo "Verifying NumPy version..."
+    python3 -c "import numpy; print(f'NumPy: {numpy.__version__}')"
+
+    echo ""
+    echo "========================================="
+    echo "Server Endpoint: http://$(hostname):8000"
+    echo "Use this in your client recipes!"
+    echo "========================================="
+    echo ""
+
+    echo "Starting vLLM single-node server..."
+    echo "Model: facebook/opt-125m"
+
+    python3 -m vllm.entrypoints.openai.api_server \
+        --model facebook/opt-125m \
+        --host 0.0.0.0 \
+        --port 8000 \
+        --dtype auto \
+        --max-model-len 2048 \
+        --gpu-memory-utilization 0.9 \
+        --disable-log-requests
+
+working_dir: /workspace
