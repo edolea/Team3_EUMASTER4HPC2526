@@ -129,16 +129,54 @@ exit $EXIT_CODE
         think_time = recipe.workload.get('think_time_ms', 0)
         requests_per_user = recipe.workload.get('requests_per_user', 100)
         
-        cmd = f"""python -m client.workload_runner \\
+        # Get payload from recipe (if defined) or build from dataset
+        payload = recipe.payload
+        
+        # If no explicit payload, try to build from dataset configuration
+        if not payload and recipe.dataset:
+            payload = self._build_payload_from_dataset(recipe.dataset, target_endpoint)
+        
+        import json
+        payload_json = json.dumps(payload) if payload else '{}'
+        
+        # Get headers from recipe
+        headers = recipe.headers if hasattr(recipe, 'headers') else {}
+        headers_json = json.dumps(headers) if headers else '{}'
+        
+        cmd = f"""python -m src.client.workload_runner \\
     --endpoint "{target_endpoint}" \\
     --pattern "{pattern}" \\
     --duration {duration} \\
     --concurrent-users {concurrent_users} \\
     --think-time {think_time} \\
     --requests-per-user {requests_per_user} \\
+    --payload '{payload_json}' \\
+    --headers '{headers_json}' \\
     --output "{output_file}"
 """
         return cmd
+    
+    def _build_payload_from_dataset(self, dataset, target_endpoint):
+        """Build request payload from dataset configuration.
+        This is a helper for synthetic datasets - adjust endpoint and payload based on dataset type.
+        """
+        dataset_type = dataset.get('type', 'synthetic')
+        params = dataset.get('params', {})
+        
+        # For synthetic datasets, try to infer the service type and build appropriate payload
+        if 'model_name' in params:
+            # Looks like an LLM service (vLLM, Ollama, etc.)
+            # These typically use /v1/completions or /v1/chat/completions
+            return {
+                "model": params.get('model_name', 'default'),
+                "prompt": params.get('prompt', 'Once upon a time'),
+                "max_tokens": params.get('max_tokens', 20),
+                "temperature": params.get('temperature', 0.7),
+                "top_p": params.get('top_p', 1.0)
+            }
+        
+        # Default: return params as-is
+        return params
 
     def _submit_job(self, script_content):
         with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:

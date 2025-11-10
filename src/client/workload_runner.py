@@ -136,9 +136,15 @@ def main():
     parser.add_argument('--concurrent-users', type=int, default=1)
     parser.add_argument('--think-time', type=int, default=0)
     parser.add_argument('--requests-per-user', type=int, default=100)
+    parser.add_argument('--payload', default='{}', help='JSON payload for requests')
+    parser.add_argument('--headers', default='{}', help='JSON headers for requests')
     parser.add_argument('--output', required=True)
     
     args = parser.parse_args()
+    
+    # Parse JSON arguments
+    payload = json.loads(args.payload) if args.payload else {}
+    headers = json.loads(args.headers) if args.headers else {}
     
     runner = WorkloadRunner(
         endpoint=args.endpoint,
@@ -146,7 +152,9 @@ def main():
         duration=args.duration,
         concurrent_users=args.concurrent_users,
         think_time=args.think_time,
-        requests_per_user=args.requests_per_user
+        requests_per_user=args.requests_per_user,
+        payload=payload,
+        headers=headers
     )
     
     metrics = runner.run()
