@@ -8,50 +8,19 @@ import sys
 from .manager import ServerManager
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Server deployment CLI",
-        prog="python -m server",
-    )
-
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
-
-    run_parser = subparsers.add_parser("run", help="Deploy a server from a recipe")
-    run_parser.add_argument("--recipe", required=True, help="Recipe name to deploy")
-    run_parser.add_argument("--count", type=int, default=1, help="Number of instances to launch")
-
-    subparsers.add_parser("list", help="List available server recipes")
-
-    stop_parser = subparsers.add_parser("stop", help="Stop a running server instance")
-    stop_parser.add_argument("--name", required=True, help="Instance name to stop")
-
-    subparsers.add_parser("stop-all", help="Stop every tracked server instance")
-
-    subparsers.add_parser("status", help="Show status for tracked server instances")
-
-    info_parser = subparsers.add_parser("info", help="Show information about a recipe")
-    info_parser.add_argument("--recipe", required=True, help="Recipe name")
-
-    template_parser = subparsers.add_parser("template", help="Create a recipe template")
-    template_parser.add_argument("--name", required=True, help="Template file name")
-
-    return parser
-
-
-def main() -> None:
-    parser = build_parser()
-    args = parser.parse_args()
-
+def handle_server_commands(args) -> None:
+    """Handle server commands from unified CLI"""
+    
     if not args.command:
-        parser.print_help()
-        return
-
+        print("Error: No command specified", file=sys.stderr)
+        sys.exit(1)
+    
     manager = ServerManager()
 
     if args.command == "run":
         try:
             deployments = manager.run(args.recipe, count=args.count)
-        except Exception as exc:  # pragma: no cover - CLI guard
+        except Exception as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
 
@@ -105,14 +74,46 @@ def main() -> None:
         print(f"Command:      {info['command']}")
         print(f"Location:     {info['file_path']}")
 
-    elif args.command == "template":
-        try:
-            destination = manager.recipe_loader.create_recipe_template(args.name)
-        except Exception as exc:  # pragma: no cover - CLI guard
-            print(f"Error: {exc}", file=sys.stderr)
-            sys.exit(1)
 
-        print(f"Template created at {destination}")
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Server deployment CLI",
+        prog="python -m server",
+    )
+
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    run_parser = subparsers.add_parser("run", help="Deploy a server from a recipe")
+    run_parser.add_argument("--recipe", required=True, help="Recipe name to deploy")
+    run_parser.add_argument("--count", type=int, default=1, help="Number of instances to launch")
+
+    subparsers.add_parser("list", help="List available server recipes")
+
+    stop_parser = subparsers.add_parser("stop", help="Stop a running server instance")
+    stop_parser.add_argument("--name", required=True, help="Instance name to stop")
+
+    subparsers.add_parser("stop-all", help="Stop every tracked server instance")
+
+    subparsers.add_parser("status", help="Show status for tracked server instances")
+
+    info_parser = subparsers.add_parser("info", help="Show information about a recipe")
+    info_parser.add_argument("--recipe", required=True, help="Recipe name")
+
+    template_parser = subparsers.add_parser("template", help="Create a recipe template")
+    template_parser.add_argument("--name", required=True, help="Template file name")
+
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        return
+
+    handle_server_commands(args)
 
 
 if __name__ == "__main__":
