@@ -1,0 +1,7 @@
+name: cpu_metrics
+description: Example recipe scraping CPU exporters
+scrape_interval: 5s
+scrape_timeout: 4s
+targets:
+  - "localhost:9100"
+  - "example.com:9100"
