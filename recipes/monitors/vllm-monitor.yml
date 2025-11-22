@@ -1,10 +1,10 @@
 name: vllm-monitor
+service_name: vllm
 description: Prometheus monitoring for vLLM service
 
 targets:
   - name: vllm-llm
-    host: mel2071
-    port: 37123
+    port: 8000
     metrics_path: /metrics
 
 prometheus:

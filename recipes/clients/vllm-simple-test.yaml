@@ -1,10 +1,9 @@
 name: vllm-simple-test
+service_name: vllm
 description: Simple benchmark test for vLLM single-node inference server
 
 # Target specification
 target:
-  service: vllm-server # Name of the running service to benchmark
-  endpoint: "http://mel2071:37123/v1/completions" # Full endpoint including API path
   protocol: http
   timeout_seconds: 60 # Longer timeout for LLM inference
 
