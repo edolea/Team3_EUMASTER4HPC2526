@@ -27,6 +27,20 @@ All commands use Python module interface:
 python -m src.<module> <command> [options]
 ```
 
+## Service Discovery Commands
+
+```bash
+# List all discovered services
+python -m src.list_services
+
+# Clear all discovered services
+python -m src.clear_services
+
+# Manually update discovery info (rarely needed)
+python -m src.update_discovery <service-name> <job-id>
+# Example: python -m src.update_discovery vllm 3757043
+```
+
 ## Server Commands
 
 ```bash
@@ -89,32 +103,38 @@ python -m src.client info --recipe <name>
 
 ## Common Workflows
 
-### Full Stack Deployment
+### Full Stack Deployment (with Auto-Discovery)
 
 ```bash
-# 1. Deploy vLLM server
+# 1. Deploy vLLM server (auto-registers as 'vllm')
 python -m src.server run --recipe vllm-server
-# → Note Job ID: 12345
+# → Submitted 1 instance(s)
+# → vllm-server:01b9e92d -> 3757043
 
-# 2. Start Prometheus monitoring
-python -m src.monitor start --recipe vllm-monitor --targets 12345
+# 2. Verify discovery
+python -m src.list_services
+# → Service: vllm (node: mel2013, ports: [8000])
+
+# 3. Start Prometheus monitoring (auto-finds 'vllm')
+python -m src.monitor start --recipe vllm-monitor
 # → Monitor ID: abc123...
 # → Prometheus: http://node-01:9090
 
-# 3. Access Prometheus (SSH tunnel from your local machine)
+# 4. Access Prometheus (SSH tunnel from your local machine)
 ssh -L 9090:node-01:9090 user@meluxina.lxp.lu
 # → Browser: http://localhost:9090
 
-# 4. Run benchmark
-python -m src.client run --recipe vllm-benchmark --runs 5
+# 5. Run benchmark (auto-finds 'vllm')
+python -m src.client run --recipe vllm-simple-test
 
-# 5. View metrics in Prometheus
+# 6. View metrics in Prometheus
 # → http://localhost:9090/targets
 # → http://localhost:9090/graph
 
-# 6. Cleanup
-python -m src.monitor stop --id abc123
+# 7. Cleanup
+python -m src.monitor stop-all
 python -m src.server stop-all
+python -m src.clear_services
 ```
 
 ### Monitor Existing Service
@@ -320,11 +340,29 @@ http://localhost:9090
 **Problem**: Python not available  
 **Solution**: Request interactive session: `salloc -A p200981 -t 02:00:00 -q dev`
 
+**Problem**: "Could not discover endpoint for service"  
+**Solution**:
+
+- Check service is running: `squeue -u $USER`
+- List discovered services: `python -m src.list_services`
+- If service missing node/ports, update: `python -m src.update_discovery <service> <job-id>`
+
+**Problem**: "No valid targets found to monitor"  
+**Solution**:
+
+- Verify service exists: `python -m src.list_services`
+- Check `service_name` matches in all recipes (server, client, monitor)
+- Update discovery if needed: `python -m src.update_discovery <service> <job-id>`
+
 ## Tips
 
 - Always work in an interactive session (salloc) - Python not available on login nodes
+- All recipes for the same service should use the same `service_name` field
+- Use `python -m src.list_services` to debug service discovery issues
+- Discovery info is stored in `~/.ubenchai/discover/`
 - Monitor IDs are UUIDs - use first 8 chars for convenience
 - Prometheus retains metrics based on `retention_time` in recipe
 - Stop monitors when done to free SLURM resources
 - Check `logs/monitors/instances.json` for persistent state
 - Use SSH tunnels to access services on compute nodes
+- Clear discovery cache with `python -m src.clear_services` when done

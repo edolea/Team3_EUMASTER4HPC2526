@@ -47,34 +47,56 @@ All operations are orchestrated through SLURM, deploying containerized services 
 
 ### Basic Usage
 
-All commands use the Python module interface
+All commands use the Python module interface. Thanks to automatic service discovery, you no longer need to manually track job IDs or endpoints!
 
 ```bash
-# Deploy a server
-python -m  server run --recipe vllm-server
-# The server's endpoint is automatically discovered.
+# Deploy a server (automatically registers its endpoint)
+python -m src.server run --recipe vllm-server
 
-# Start monitoring
-python -m  monitor start --recipe vllm-monitor
+# Start monitoring (automatically finds the server)
+python -m src.monitor start --recipe vllm-monitor
 # Output: Prometheus URL: http://node-01:9090
 
-# Run benchmark
-python -m  client run --recipe vllm-benchmark
+# Run benchmark (automatically finds the server)
+python -m src.client run --recipe vllm-simple-test
+
+# List discovered services
+python -m src.list_services
 
 # Cleanup
-python -m  monitor stop-all
-python -m  server stop-all
+python -m src.monitor stop-all
+python -m src.server stop-all
+python -m src.clear_services  # Clear discovery cache
 ```
 
 ## Architecture
 
 ### Service Discovery
 
-The framework now includes an automatic service discovery mechanism.
+The framework includes automatic service discovery that eliminates manual endpoint management.
 
-- When a server is started with `server run`, it registers its connection details (node, port, job ID) in a local discovery file (`~/.aif/discover/`).
-- The `client` and `monitor` modules can then read this file to find the service they need to connect to, based on the service name specified in their recipes.
-- This eliminates the need to manually look up and provide node IPs, ports, or SLURM job IDs.
+**How it works:**
+
+- When a server starts, it automatically registers its connection details (node, port, job ID) in `~/.ubenchai/discover/`
+- All recipes now include a `service_name` field (e.g., `vllm`) that links server, client, and monitor
+- Clients and monitors automatically find servers by looking up the `service_name`
+- No more copying job IDs or endpoints between commands!
+
+**Recipe Configuration:**
+
+```yaml
+name: vllm-server
+service_name: vllm # This is the discovery key
+description: vLLM inference server
+```
+
+**Utility Commands:**
+
+```bash
+python -m src.list_services      # Show all discovered services
+python -m src.clear_services     # Clear discovery cache
+python -m src.update_discovery vllm <job-id>  # Manually update (rarely needed)
+```
 
 ### Directory Structure
 
@@ -145,7 +167,7 @@ Executes benchmarks against deployed services:
 
 ### Deploy and Monitor a vLLM Server
 
-The new workflow is much simpler thanks to service discovery.
+With automatic service discovery, the workflow is now streamlined:
 
 ```bash
 # Start interactive session
@@ -155,31 +177,37 @@ salloc -A p200981 -t 02:00:00 -q dev
 ./setup.sh
 export SLURM_ACCOUNT=p200981
 
-# Deploy server
-python -m  server run --recipe vllm-server
-# → The server is deployed and its endpoint is registered.
+# Deploy server (automatically registers as 'vllm')
+python -m src.server run --recipe vllm-server
+# → Submitted 1 instance(s)
+# → vllm-server:01b9e92d -> 3757043
 
-# Start monitoring
-# The monitor automatically finds the vllm-server.
-python -m  monitor start --recipe vllm-monitor
+# Verify service is discovered
+python -m src.list_services
+# → Service: vllm
+# →   node: mel2013, ports: [8000]
+
+# Start monitoring (automatically finds 'vllm' service)
+python -m src.monitor start --recipe vllm-monitor
 # → Monitor ID: abc12345-...
-# → Prometheus URL: http://node-01:9090
+# → Prometheus: http://node-01:9090
 
 # Access Prometheus (from your local machine, open new terminal)
 ssh -L 9090:node-01:9090 <user>@meluxina.lxp.lu
 # → Browser: http://localhost:9090
 
-# Run benchmark (back in MeluXina session)
-# The client automatically finds the vllm-server.
-python -m  client run --recipe vllm-benchmark
+# Run benchmark (automatically finds 'vllm' service)
+python -m src.client run --recipe vllm-simple-test
+# → Benchmark results...
 
 # View metrics in Prometheus
 # → Targets: http://localhost:9090/targets
 # → Graphs: http://localhost:9090/graph
 
 # Cleanup
-python -m  monitor stop --id abc12345
-python -m  server stop-all
+python -m src.monitor stop-all
+python -m src.server stop-all
+python -m src.clear_services
 ```
 
 ### Monitor Existing SLURM Job

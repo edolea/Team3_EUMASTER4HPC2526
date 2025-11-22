@@ -62,6 +62,7 @@ class MonitorRecipe:
     description: str
     targets: List[TargetService]
     prometheus: PrometheusConfig
+    service_name: str = ""
 
     @staticmethod
     def from_yaml(path: str) -> "MonitorRecipe":
@@ -110,6 +111,7 @@ class MonitorRecipe:
             description=description,
             targets=targets,
             prometheus=prometheus,
+            service_name=data.get("service_name", name),
         )
         recipe.validate()
         return recipe

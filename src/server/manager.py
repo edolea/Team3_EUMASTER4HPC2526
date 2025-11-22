@@ -47,13 +47,25 @@ class ServerManager:
             instance.orchestrator_handle = job_id
             instance.mark_starting()
 
-            # Write discovery information
+            # Try to get node information immediately (for running jobs)
+            # This allows discovery to work without needing to call status separately
+            try:
+                import time
+                time.sleep(2)  # Give SLURM a moment to register the job
+                status_info = self.orchestrator.status(job_id)
+                instance.update_status(status_info)
+            except Exception:
+                pass  # If we can't get status now, it will be updated later
+
+            # Write discovery information with whatever info we have
             discover_data = {
                 "job_id": job_id,
                 "recipe_name": recipe.name,
                 "instance_id": instance.id,
+                "node": instance.metadata.get("node"),
+                "ports": instance.ports,
             }
-            write_discover_info(recipe.name, discover_data)
+            write_discover_info(recipe.service_name, discover_data)
 
             name = f"{recipe.name}-{instance.id[:8]}"
             self.instances[name] = instance
@@ -69,7 +81,9 @@ class ServerManager:
 
         if self.orchestrator.stop(instance.orchestrator_handle):
             instance.cancel()
-            clear_discover_info(instance.recipe_name)  # Clear discovery info
+            # Get the recipe to access service_name
+            recipe = self.recipe_loader.load_recipe(instance.recipe_name)
+            clear_discover_info(recipe.service_name)  # Clear discovery info
             return True
 
         return False
@@ -92,6 +106,8 @@ class ServerManager:
 
                 # Update discovery info if running
                 if instance.status == ServerStatus.RUNNING:
+                    # Get the recipe to access service_name
+                    recipe = self.recipe_loader.load_recipe(instance.recipe_name)
                     discover_data = {
                         "job_id": instance.orchestrator_handle,
                         "recipe_name": instance.recipe_name,
@@ -99,7 +115,7 @@ class ServerManager:
                         "node": instance.metadata.get("node"),
                         "ports": instance.ports,
                     }
-                    write_discover_info(instance.recipe_name, discover_data)
+                    write_discover_info(recipe.service_name, discover_data)
 
             except Exception:
                 # Failure to query SLURM should not break status collection.

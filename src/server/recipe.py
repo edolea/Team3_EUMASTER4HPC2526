@@ -18,11 +18,13 @@ class ServerRecipe:
         *,
         orchestration: Optional[Dict[str, Any]] = None,
         description: Optional[str] = None,
+        service_name: Optional[str] = None,
     ) -> None:
         self.name = name
         self.service = service or {}
         self.orchestration = orchestration or {}
         self.description = description
+        self.service_name = service_name or name
 
     # ------------------------------------------------------------------
     def validate(self) -> None:
@@ -72,6 +74,7 @@ class ServerRecipe:
             service=data.get("service", {}),
             orchestration=data.get("orchestration"),
             description=data.get("description"),
+            service_name=data.get("service_name"),
         )
 
         recipe.validate()

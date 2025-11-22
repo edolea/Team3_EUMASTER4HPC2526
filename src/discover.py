@@ -38,3 +38,15 @@ def clear_discover_info(service_name: str):
     file_path = get_discover_path(service_name)
     if os.path.exists(file_path):
         os.remove(file_path)
+
+
+def list_discovered_services() -> list[str]:
+    """List all services with discovery info."""
+    if not os.path.exists(DISCOVERY_DIR):
+        return []
+    
+    services = []
+    for filename in os.listdir(DISCOVERY_DIR):
+        if filename.endswith('.json'):
+            services.append(filename[:-5])  # Remove .json extension
+    return sorted(services)

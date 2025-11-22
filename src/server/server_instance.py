@@ -58,17 +58,23 @@ class ServerInstance:
     def cancel(self) -> None:
         self.update_status(ServerStatus.CANCELED)
 
-    def update_status(self, status_info: Dict[str, Any]) -> None:
-        new_status = status_info.get("status", self.status)
+    def update_status(self, status_info: Dict[str, Any] | ServerStatus) -> None:
+        # Handle both ServerStatus enum and dictionary inputs
+        if isinstance(status_info, ServerStatus):
+            new_status = status_info
+        else:
+            new_status = status_info.get("status", self.status)
+        
         self.status = new_status
         if new_status in {ServerStatus.COMPLETED, ServerStatus.FAILED, ServerStatus.CANCELED}:
             self.completed_at = datetime.now()
 
-        # Update metadata
-        if "node" in status_info:
-            self.metadata["node"] = status_info["node"]
-        if "ports" in status_info:
-            self.metadata["ports"] = status_info["ports"]
+        # Update metadata (only if status_info is a dict)
+        if isinstance(status_info, dict):
+            if "node" in status_info:
+                self.metadata["node"] = status_info["node"]
+            if "ports" in status_info:
+                self.metadata["ports"] = status_info["ports"]
 
     # ------------------------------------------------------------------
     # Serialization helpers

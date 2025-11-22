@@ -56,18 +56,23 @@ class ClientManager:
         recipe = self.recipe_loader.load_recipe(name)
         
         # Discover service endpoint if not provided
-        target_service = recipe.target.get("service")
-        if target_service:
+        # Use service_name from recipe for discovery
+        service_name = getattr(recipe, 'service_name', None)
+        target_service = recipe.target.get("service")  # Legacy fallback
+        
+        discovery_key = service_name or target_service
+        
+        if discovery_key:
             try:
-                discover_info = read_discover_info(target_service)
+                discover_info = read_discover_info(discovery_key)
                 node = discover_info.get("node")
                 ports = discover_info.get("ports")
                 if node and ports:
-                    target_endpoint = f"http://{node}:{ports[0]}"
+                    target_endpoint = f"http://{node}:{ports[0]}/v1/completions"
                 else:
                     raise ValueError("Incomplete discovery info")
             except (FileNotFoundError, ValueError):
-                raise RuntimeError(f"Could not discover endpoint for service '{target_service}'")
+                raise RuntimeError(f"Could not discover endpoint for service '{discovery_key}'")
         else:
             target_endpoint = recipe.target.get('endpoint')
 
