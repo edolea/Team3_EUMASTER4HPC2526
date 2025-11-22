@@ -3,6 +3,7 @@ description: HPC stress test for vLLM - realistic LLM inference workload
 
 target:
   service: vllm-server
+  endpoint: "http://mel2071:37123/v1/completions"
   protocol: http
   timeout_seconds: 120
 

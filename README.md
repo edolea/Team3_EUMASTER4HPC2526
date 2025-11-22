@@ -12,32 +12,58 @@ AI-Factories provides three integrated modules:
 
 All operations are orchestrated through SLURM, deploying containerized services via Apptainer.
 
-## Quick Start
+## Getting Started on MeluXina
 
-### Installation
+### Prerequisites
+
+- Access to MeluXina cluster
+- SLURM account configured (e.g., p200981)
+
+### Setup Steps
+
+1. **Access MeluXina**
+
+   ```bash
+   ssh <user>@meluxina.lxp.lu
+   ```
+
+2. **Request interactive session**
+
+   ```bash
+   salloc -A p200981 -t 02:00:00 -q dev
+   ```
+
+3. **Run setup script**
+
+   ```bash
+   cd /path/to/repo/
+   ./setup.sh
+   ```
+
+4. **Configure environment**
+   ```bash
+   export SLURM_ACCOUNT=p200981  # or your account
+   ```
+
+### Basic Usage
+
+All commands use the Python module interface:
 
 ```bash
-cd /path/to/repo
-pip install -r requirements.txt
-```
-
-### Basic Workflow
-
-```bash
-# 1. Deploy a server
-./ai-factories.sh server run --recipe vllm-server
+# Deploy a server
+python -m  server run --recipe vllm-server
 # Output: Job ID: 12345
 
-# 2. Start monitoring
-./ai-factories.sh monitor start --recipe vllm-monitor --targets 12345
+# Start monitoring
+python -m  monitor start --recipe vllm-monitor --targets 12345
 # Output: Prometheus URL: http://node-01:9090
 
-# 3. Run benchmark
-./ai-factories.sh client run --recipe vllm-benchmark
+# Run benchmark
+python -m  client run --recipe vllm-benchmark
 
-# 4. Cleanup
-./ai-factories.sh monitor stop-all
-./ai-factories.sh server stop-all
+# Cleanup
+python -m  monitor stop-all
+python -m  server stop-all
 ```
 
 ## Architecture
@@ -45,31 +71,31 @@ pip install -r requirements.txt
 ### Directory Structure
 
 ```
-root/
- ai-factories.sh          # Main CLI wrapper script
- cli.py                   # Python CLI router
+/
+ setup.sh                  # Setup script for MeluXina
+ cli.py                    # Python CLI router
  config/
-   └── slurm.yml           # SLURM configuration
+   └── slurm.yml            # SLURM configuration
  recipes/
-   ├── servers/            # Server deployment recipes
-   ├── clients/            # Client benchmark recipes
-   └── monitors/           # Monitor stack recipes
+   ├── servers/             # Server deployment recipes
+   ├── clients/             # Client benchmark recipes
+   └── monitors/            # Monitor stack recipes
        ├── vllm-monitor.yml
        └── ollama-monitor.yml
  src/
-   ├── server/             # Server deployment module
-   ├── client/             # Client benchmark module
-   └── monitor/            # Monitoring module
-       ├── manager.py      # Orchestration logic
-       ├── orchestrator.py # SLURM job management
-       ├── models.py       # Data models
-       └── recipe_loader.py
+   ├── server/              # Server deployment module
+   ├── client/              # Client benchmark module
+ monitor/             # Monitoring module   └
+       ├── manager.py       # Orchestration logic
+       ├── orchestrator.py  # SLURM job management
+       ├── models.py        # Data models
+ recipe_loader.py       └─
  logs/
     ├── servers/
-    ├── clients/
-    └── monitors/           # Monitor state and logs
-        ├── instances.json  # Persistent state
-        └── slurm/          # SLURM job logs
+ clients/
+    └── monitors/            # Monitor state and logs
+        ├── instances.json   # Persistent state
+        └── slurm/           # SLURM job logs
 ```
 
 ### Module Overview
@@ -101,303 +127,90 @@ Key components:
 
 #### Client Module
 
-Runs benchmarks against deployed services:
+Executes benchmarks against deployed services:
 
-- Configurable workload patterns
-- Metrics collection and reporting
-- Results persistence
+- Supports various workload patterns
+- Collects performance metrics
+- Generates reports
 
-## How It Works
+## Workflows
 
-### 1. Server Deployment
-
-```bash
-./ai-factories.sh server run --recipe vllm-server
-```
-
-**Process:**
-
-1. Load recipe from `recipes/servers/vllm-server.yml`
-2. Generate SLURM batch script with resource requirements
-3. Submit job via `sbatch`
-4. Return job ID and wait for RUNNING state
-5. Service available at `<node>:<port>`
-
-### 2. Monitor Deployment
+### Deploy and Monitor a vLLM Server
 
 ```bash
-./ai-factories.sh monitor start --recipe vllm-monitor --targets 12345
-```
+# Start interactive session
+salloc -A p200981 -t 02:00:00 -q dev
 
-**Process:**
-
-1. Load recipe from `recipes/monitors/vllm-monitor.yml`
-2. Wait for target job 12345 to be RUNNING
-3. Query SLURM to get compute node (e.g., `gpu-node-01`)
-4. Resolve target endpoint: `gpu-node-01:8000`
-5. Generate Prometheus config to scrape that endpoint
-6. Create SLURM batch script for Prometheus
-7. Deploy Prometheus as SLURM job with Apptainer
-8. Wait for Prometheus job to be RUNNING
-9. Return Prometheus URL: `http://prom-node:9090`
-
-**Target Resolution:**
-
-```python
-# Automatic from job ID
-target_job_ids=["12345"]
-# → Queries squeue → gpu-node-01
-# → Creates target: "gpu-node-01:8000"
-
-# Or direct endpoint
-targets = [{"name": "my-service", "endpoint": "node-01:8000"}]
-```
-
-### 3. Client Benchmarking
-
-```bash
-./ai-factories.sh client run --recipe vllm-benchmark
-```
-
-**Process:**
-
-1. Load benchmark recipe with workload pattern
-2. Connect to server endpoint
-3. Execute benchmark requests
-4. Collect metrics (latency, throughput, etc.)
-5. Save results to `results/`
-
-### Integration Flow
-
-```
-
-  User runs: ./ai-factories.sh                           │
-
-                │
-                ▼
-
-  Bash Wrapper (ai-factories.sh)                         │
-  - Loads MeluXina modules                               │
-  - Sets up Python environment                           │
-  - Routes to: python -m <module> <command>          │
-
-                │
-                ▼
-
-  Python CLI Router (cli.py)                             │
-  - Parses module (server/client/monitor)                │
-  - Routes to module handler                             │
-
-                │
-        ┌───────┴───────┬────────────┐
-        ▼               ▼            ▼
-   ┌──────────┐    ┌────────┐    ┌──
-    │ Server │    │ Client  │   │ Monitor  │
-    │ Module │    │ Module  │   │ Module   │
-    └────┬───┘    └────┬────┘   └───
-         │             │             │
-         ▼             ▼             ▼
-    ┌────────
-    │    SLURM Cluster (sbatch/squeue)   │
-    │    - Submit jobs                   │
-    │    - Monitor status                │
-    │    - lifecycle Manage
-    └────────────────────────────────────┘
-```
-
-## Configuration
-
-### SLURM Settings
-
-**Environment variables:**
-
-```bash
-export SLURM_ACCOUNT=your-account
-export SLURM_PARTITION=cpu
-export SLURM_QOS=default
-```
-
-**Or edit `config/slurm.yml`:**
-
-```yaml
-slurm:
-  partition: cpu
-  qos: default
-  time_limit: "02:00:00"
-  module_env: "env/release/2024.1"
-  apptainer_module: "Apptainer/1.3.6-GCCcore-13.3.0"
-  image_cache: "./containers"
-```
-
-### Monitor Recipe Format
-
-Example `recipes/monitors/vllm-monitor.yml`:
-
-```yaml
-name: vllm-monitor
-description: Prometheus monitoring for vLLM service
-
-targets:
-  - name: vllm-llm
-    port: 8000 # Service port
-    metrics_path: /metrics
-
-prometheus:
-  enabled: true
-  image: docker://prom/prometheus:latest
-  scrape_interval: 15s
-  retention_time: 24h
-  port: 9090
-  partition: cpu # SLURM partition
-  resources:
-    cpu_cores: 2
-    memory_gb: 4
-    gpu_count: 0
-```
-
-## Access Services
-
-### Prometheus Web UI
-
-After starting a monitor, access via SSH tunnel:
-
-```bash
-# Get Prometheus URL from monitor output
-# Example: http://gpu-node-02:9090
-
-# Create SSH tunnel
-ssh -L 9090:gpu-node-02:9090 user@meluxina
-
-# Open in browser
-http://localhost:9090
-```
-
-### Server Endpoints
-
-Servers expose their service ports on compute nodes:
-
-```bash
-# Get server node and port from deployment
-# Example: gpu-node-01:8000
-
-# Test directly (if accessible)
-curl http://gpu-node-01:8000/health
-
-# Or via tunnel
-ssh -L 8000:gpu-node-01:8000 user@meluxina
-curl http://localhost:8000/health
-```
-
-## Programmatic Usage
-
-### Python API
-
-```python
-from src.monitor import MonitorManager
-from src.server import ServerManager
+# Run setup
+./setup.sh
+export SLURM_ACCOUNT=p200981
 
 # Deploy server
-server_mgr = ServerManager()
-server = server_mgr.run("vllm-server")
-job_id = server[0].orchestrator_handle
+python -m  server run --recipe vllm-server
+# → Job ID: 12345
 
 # Start monitoring
-monitor_mgr = MonitorManager()
-monitor = monitor_mgr.start_monitor(
-    recipe_name="vllm-monitor",
-    target_job_ids=[job_id]
-)
+python -m  monitor start --recipe vllm-monitor --targets 12345
+# → Monitor ID: abc12345-...
+# → Prometheus URL: http://node-01:9090
 
-print(f"Server: Job {job_id}")
-print(f"Prometheus: {monitor.prometheus_url}")
-print(f"Targets: {monitor.targets}")
+# Access Prometheus (from your local machine, open new terminal)
+ssh -L 9090:node-01:9090 <user>@meluxina.lxp.lu
+# → Browser: http://localhost:9090
 
-# Get status
-status = monitor_mgr.get_monitor_status(monitor.id)
+# Run benchmark (back in MeluXina session)
+python -m  client run --recipe vllm-benchmark
+
+# View metrics in Prometheus
+# → Targets: http://localhost:9090/targets
+# → Graphs: http://localhost:9090/graph
 
 # Cleanup
-monitor_mgr.stop_monitor(monitor.id)
-server_mgr.stop_all()
+python -m  monitor stop --id abc12345
+python -m  server stop-all
 ```
 
-## Troubleshooting
-
-### Python not available on login node
-
-Use the bash wrapper `./ai-factories.sh` which automatically loads required modules.
-
-### Monitor fails to start
+### Monitor Existing SLURM Job
 
 ```bash
-# Check SLURM account
-echo $SLURM_ACCOUNT
-
-# Verify recipe exists
-ls recipes/monitors/
-
-# Check SLURM queue
+# Check running jobs
 squeue -u $USER
+# → Job ID: 67890
+
+# Start monitoring
+python -m  monitor start --recipe vllm-monitor --targets 67890
 ```
 
-### Can't resolve target job
+### List All Resources
 
 ```bash
-# Verify job is running
-squeue -j <job-id>
+# See all available recipes
+python -m  server list
+python -m  monitor list
+python -m  client list
 
-# Check job details
-scontrol show job <job-id>
-```
+# See running instances
+python -m  server status
+python -m  monitor list
 
-### Prometheus not accessible
-
-```bash
-# Check monitor logs
-cat logs/monitors/slurm/prometheus_*.log
-
-# Verify Prometheus job
-squeue | grep prometheus
-
-# Check instance state
-cat logs/monitors/instances.json
-```
-
-## Advanced Usage
-
-### Monitor Multiple Services
-
-```bash
-# Start separate monitors
-./ai-factories.sh monitor start --recipe vllm-monitor --targets 12345
-./ai-factories.sh monitor start --recipe ollama-monitor --targets 12346
-```
-
-### Direct Endpoints (No Job ID)
-
-Edit recipe to use direct endpoint:
-
-```yaml
-targets:
-  - name: my-service
-    endpoint: "node-01:8000" # Hardcoded
-    metrics_path: /metrics
-```
-
-### Custom Scrape Intervals
-
-```yaml
-prometheus:
-  scrape_interval: 5s # More frequent
-  retention_time: 48h # Longer retention
+# Check SLURM jobs
+squeue -u $USER
 ```
 
 ## Dependencies
 
-```
-requests>=2.28.0
-pyyaml>=6.0
-python-dotenv>=0.19.0
-loguru>=0.7.0
+- Python 3.12+
+- loguru >= 0.7.0
+- pyyaml >= 6.0
+- python-dotenv >= 0.19.0
+- requests >= 2.28.0
+
+Install on MeluXina:
+
+```bash
+./setup.sh  # On MeluXina with interactive session
 ```
 
-Install with: `pip install -r requirements.txt`
+## License
+
+See LICENSE file.

@@ -86,6 +86,8 @@ class ServerOrchestrator:
         resources = recipe.resources
         cpu_cores = resources.get("cpu_cores", 1)
         memory_gb = resources.get("memory_gb", 4)
+        gpu_count = resources.get("gpu_count", 0)
+        partition = resources.get("partition", self.partition)
 
         working_dir = recipe.working_directory or os.getcwd()
         working_path = Path(working_dir)
@@ -102,17 +104,20 @@ class ServerOrchestrator:
 
         port_info = " ".join(str(p) for p in recipe.ports)
 
+        # Build GPU directive if needed
+        gpu_directive = f"\n#SBATCH --gres=gpu:{gpu_count}" if gpu_count > 0 else ""
+
         script = f"""#!/bin/bash -l
 
 #SBATCH --job-name={recipe.name}_{instance.id[:8]}
 #SBATCH --time={self.time_limit}
 #SBATCH --qos={self.qos}
-#SBATCH --partition={self.partition}
+#SBATCH --partition={partition}
 #SBATCH --account={self.account}
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task={cpu_cores}
-#SBATCH --mem={memory_gb}G
+#SBATCH --mem={memory_gb}G{gpu_directive}
 
 echo "========================================="
 echo "Server Deployment"
@@ -123,7 +128,6 @@ echo "Working Directory = {working_path}"
 echo "Job ID            = $SLURM_JOB_ID"
 echo "Instance ID       = {instance.id}"
 echo "Recipe            = {recipe.name}"
-echo "Command           = {recipe.service.get('command', '')}"
 echo "Ports             = {port_info}"
 echo "========================================="
 

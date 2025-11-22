@@ -1,77 +1,90 @@
 # AI-Factories Quick Reference
 
-## Command Reference
-
-### Bash Wrapper (Recommended for MeluXina)
+## Setup on MeluXina
 
 ```bash
-./ai-factories.sh <module> <command> [options]
+# 1. SSH to MeluXina
+ssh <user>@meluxina.lxp.lu
+
+# 2. Request interactive session
+salloc -A p200981 -t 02:00:00 -q dev
+
+# 3. Move to repo
+cd /path/to/repo
+
+# 4. Run setup script
+./setup.sh
+
+# 5. Set account
+export SLURM_ACCOUNT=p200981
 ```
 
-### Direct Python
+## Command Reference
+
+All commands use Python module interface:
 
 ```bash
-python -m <module> <command> [options]
+python -m src.<module> <command> [options]
 ```
 
 ## Server Commands
 
 ```bash
 # Deploy server
-./ai-factories.sh server run --recipe <name> [--count <n>]
+python -m src.server run --recipe <name> [--count <n>]
 
 # List available recipes
-./ai-factories.sh server list
+python -m src.server list
 
 # Show server status
-./ai-factories.sh server status
+python -m src.server status
 
 # Stop server
-./ai-factories.sh server stop --name <instance>
+python -m src.server stop --name <instance>
 
 # Stop all servers
-./ai-factories.sh server stop-all
+python -m src.server stop-all
 
 # Recipe info
-./ai-factories.sh server info --recipe <name>
+python -m src.server info --recipe <name>
 ```
 
 ## Monitor Commands
 
 ```bash
 # Start monitoring (with job ID)
-./ai-factories.sh monitor start --recipe <name> --targets <job-id>[,<job-id>,...]
+python -m src.monitor start --recipe <name> --targets <job-id>[,<job-id>,...]
 
 # Start monitoring (direct endpoint in recipe)
-./ai-factories.sh monitor start --recipe <name>
+python -m src.monitor start --recipe <name>
 
 # List monitors and recipes
-./ai-factories.sh monitor list
+python -m src.monitor list
 
 # Get monitor status
-./ai-factories.sh monitor status --id <monitor-id>
+python -m src.monitor status --id <monitor-id>
 
 # Stop monitor
-./ai-factories.sh monitor stop --id <monitor-id>
+python -m src.monitor stop --id <monitor-id>
 
 # Stop all monitors
-./ai-factories.sh monitor stop-all
+python -m src.monitor stop-all
 
 # Recipe info
-./ai-factories.sh monitor info --recipe <name>
+python -m src.monitor info --recipe <name>
 ```
 
 ## Client Commands
 
 ```bash
 # Run benchmark
-./ai-factories.sh client run --recipe <name> [--runs <n>]
+python -m src.client run --recipe <name> [--runs <n>]
 
 # List available recipes
-./ai-factories.sh client list
+python -m src.client list
 
 # Recipe info
-./ai-factories.sh client info --recipe <name>
+python -m src.client info --recipe <name>
 ```
 
 ## Common Workflows
@@ -80,28 +93,28 @@ python -m <module> <command> [options]
 
 ```bash
 # 1. Deploy vLLM server
-./ai-factories.sh server run --recipe vllm-server
+python -m src.server run --recipe vllm-server
 # → Note Job ID: 12345
 
 # 2. Start Prometheus monitoring
-./ai-factories.sh monitor start --recipe vllm-monitor --targets 12345
+python -m src.monitor start --recipe vllm-monitor --targets 12345
 # → Monitor ID: abc123...
 # → Prometheus: http://node-01:9090
 
-# 3. Access Prometheus (SSH tunnel)
-ssh -L 9090:node-01:9090 user@meluxina
+# 3. Access Prometheus (SSH tunnel from your local machine)
+ssh -L 9090:node-01:9090 user@meluxina.lxp.lu
 # → Browser: http://localhost:9090
 
 # 4. Run benchmark
-./ai-factories.sh client run --recipe vllm-benchmark --runs 5
+python -m src.client run --recipe vllm-benchmark --runs 5
 
 # 5. View metrics in Prometheus
 # → http://localhost:9090/targets
 # → http://localhost:9090/graph
 
 # 6. Cleanup
-./ai-factories.sh monitor stop --id abc123
-./ai-factories.sh server stop-all
+python -m src.monitor stop --id abc123
+python -m src.server stop-all
 ```
 
 ### Monitor Existing Service
@@ -112,20 +125,20 @@ squeue -u $USER
 # → Job ID: 67890
 
 # Start monitoring it
-./ai-factories.sh monitor start --recipe vllm-monitor --targets 67890
+python -m src.monitor start --recipe vllm-monitor --targets 67890
 ```
 
 ### List Everything
 
 ```bash
 # See all recipes
-./ai-factories.sh server list
-./ai-factories.sh monitor list
-./ai-factories.sh client list
+python -m src.server list
+python -m src.monitor list
+python -m src.client list
 
 # See all running instances
-./ai-factories.sh server status
-./ai-factories.sh monitor list  # shows running monitors
+python -m src.server status
+python -m src.monitor list  # shows running monitors
 
 # Check SLURM jobs
 squeue -u $USER
@@ -305,11 +318,11 @@ http://localhost:9090
 **Solution**: Verify job is running: `squeue -j <job-id>`
 
 **Problem**: Python not available  
-**Solution**: Use bash wrapper: `./ai-factories.sh`
+**Solution**: Request interactive session: `salloc -A p200981 -t 02:00:00 -q dev`
 
 ## Tips
 
-- Use bash wrapper on login nodes (handles Python modules)
+- Always work in an interactive session (salloc) - Python not available on login nodes
 - Monitor IDs are UUIDs - use first 8 chars for convenience
 - Prometheus retains metrics based on `retention_time` in recipe
 - Stop monitors when done to free SLURM resources

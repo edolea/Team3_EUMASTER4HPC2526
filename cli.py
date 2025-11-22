@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 def main():
     parser = argparse.ArgumentParser(
         description="AI-Factories - Unified AI Workload Framework",
-        prog="python -m our"
+        prog="python -m"
     )
     
     subparsers = parser.add_subparsers(dest="module", help="Module to use")

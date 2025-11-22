@@ -2,7 +2,125 @@ name: vllm-server
 description: vLLM single-node inference server for MeluXina
 
 service:
-  command: "module load env/release/2024.1 && module load Apptainer/1.3.6-GCCcore-13.3.0 && CACHE_DIR=/project/scratch/$SLURM_JOB_ACCOUNT/$USER/vllm && CONTAINER_DIR=/project/scratch/$SLURM_JOB_ACCOUNT/$USER/containers && IMAGE=$CONTAINER_DIR/vllm-openai_v0.5.4.sif && mkdir -p $CACHE_DIR && mkdir -p $CONTAINER_DIR && if [ ! -f $IMAGE ]; then echo 'Pulling vLLM container image - may take 5 to 10 minutes' && apptainer pull $IMAGE docker://vllm/vllm-openai:v0.5.4; else echo 'Using existing container image'; fi && HOSTNAME=$(hostname) && PORT=8000 && echo '' && echo '=========================================' && echo 'vLLM Server Configuration' && echo '=========================================' && echo 'Endpoint: http://'$HOSTNAME':'$PORT && echo 'Model: facebook/opt-125m' && echo 'Device: CPU' && echo '=========================================' && echo '' && echo 'IMPORTANT: Update your client recipe with:' && echo 'endpoint: http://'$HOSTNAME':'$PORT && echo '' && echo '=========================================' && echo '' && apptainer exec --bind $CACHE_DIR:/root/.cache/huggingface $IMAGE bash -c 'set -e && echo Starting vLLM server on CPU && python3 -m vllm.entrypoints.openai.api_server --model facebook/opt-125m --host 0.0.0.0 --port 8000 --device cpu --dtype auto --max-model-len 2048 --disable-log-requests'"
+  # Multi-line command with proper container lifecycle management
+  # Key fix: Use a startup script INSIDE the container with proper cleanup
+  command: |
+    #!/bin/bash
+    set -e
+
+    # Load modules
+    module load env/release/2024.1
+    module load Apptainer/1.3.6-GCCcore-13.3.0
+
+    # Configuration
+    CACHE_DIR=/project/scratch/$SLURM_JOB_ACCOUNT/$USER/vllm
+    CONTAINER_DIR=/project/scratch/$SLURM_JOB_ACCOUNT/$USER/containers
+    IMAGE=$CONTAINER_DIR/vllm-openai_v0.5.4.sif
+    HOSTNAME=$(hostname)
+    PORT=8000
+
+    # Setup directories
+    mkdir -p $CACHE_DIR
+    mkdir -p $CONTAINER_DIR
+
+    # CRITICAL: Kill zombie vLLM processes on THIS HOST before starting
+    echo "Cleaning up any zombie vLLM processes on $(hostname)..."
+    pkill -9 -f "vllm.entrypoints.openai.api_server" 2>/dev/null || true
+    # Also kill any Python processes using port 8000
+    PIDS=$(lsof -ti:8000 2>/dev/null || true)
+    if [ -n "$PIDS" ]; then
+        echo "Killing processes using port 8000: $PIDS"
+        kill -9 $PIDS 2>/dev/null || true
+    fi
+    sleep 3
+    echo "Cleanup complete"
+
+    # Pull container if needed
+    if [ ! -f $IMAGE ]; then
+        echo "Pulling vLLM container image (5-10 minutes)..."
+        apptainer pull $IMAGE docker://vllm/vllm-openai:v0.5.4
+    else
+        echo "Using existing container image"
+    fi
+
+    # Create startup script that runs INSIDE the container
+    STARTUP_SCRIPT="/tmp/vllm_startup_${SLURM_JOB_ID}.sh"
+    cat > "$STARTUP_SCRIPT" << 'EOF'
+    #!/bin/bash
+    set -e
+
+    # Let the OS pick a free port
+    PORT=0
+
+    # Start vLLM and capture its output to find the port
+    LOG_FILE="/tmp/vllm_log_${SLURM_JOB_ID}.log"
+    python3 -m vllm.entrypoints.openai.api_server \
+        --model facebook/opt-125m \
+        --host 0.0.0.0 \
+        --port ${PORT} \
+        --disable-log-requests \
+        --disable-frontend-multiprocessing &> ${LOG_FILE} &
+
+    VLLM_PID=$!
+
+    # Wait for the server to start and write the log
+    echo "Waiting for vLLM to start..."
+    for i in {1..30}; do
+        if grep -q "Uvicorn running on" ${LOG_FILE}; then
+            break
+        fi
+        sleep 2
+    done
+
+    # Find the actual port from the log file
+    ACTUAL_PORT=$(grep -oP "Uvicorn running on http://0.0.0.0:\K\d+" ${LOG_FILE} || true)
+
+    if [ -z "${ACTUAL_PORT}" ]; then
+        echo "ERROR: Could not determine vLLM port. Server may have failed to start."
+        cat ${LOG_FILE}
+        exit 1
+    fi
+
+    # Announce the endpoint
+    echo "========================================="
+    echo "vLLM Server Ready!"
+    echo "Endpoint: http://$(hostname):${ACTUAL_PORT}"
+    echo "========================================="
+
+    # Write endpoint to a file for the client to find
+    echo "http://$(hostname):${ACTUAL_PORT}" > /tmp/vllm_endpoint_${SLURM_JOB_ID}.txt
+
+    # Wait for the vLLM process to exit
+    wait $VLLM_PID
+    EOF
+
+    chmod +x "$STARTUP_SCRIPT"
+
+    # Run the container
+    apptainer exec --nv --bind $CACHE_DIR:/root/.cache/huggingface $IMAGE /bin/bash "$STARTUP_SCRIPT"
+
+    # Display the final endpoint
+    echo "Final Endpoint:"
+    cat /tmp/vllm_endpoint_${SLURM_JOB_ID}.txt
+
+    # Cleanup
+    rm -f "$STARTUP_SCRIPT" /tmp/vllm_endpoint_${SLURM_JOB_ID}.txt /tmp/vllm_log_${SLURM_JOB_ID}.log
+
+    # Run the container - when this exits, all processes inside die
+    apptainer exec \
+        --nv \
+        --bind $CACHE_DIR:/root/.cache/huggingface \
+        $IMAGE \
+        /bin/bash "$STARTUP_SCRIPT"
+
+    EXIT_CODE=$?
+
+    # Cleanup
+    rm -f "$STARTUP_SCRIPT"
+
+    echo ""
+    echo "Container exited with code: $EXIT_CODE"
+    exit $EXIT_CODE
 
   working_dir: .
 
@@ -17,5 +135,6 @@ orchestration:
   resources:
     cpu_cores: 8
     memory_gb: 128
-    partition: cpu
+    gpu_count: 1
+    partition: gpu
     time_limit: "02:00:00"
