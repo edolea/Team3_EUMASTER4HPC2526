@@ -1,6 +1,7 @@
 from .recipe_loader import RecipeLoader
 from .client_instance import ClientInstance, RunStatus
 from .orchestrator import ClientOrchestrator
+from src.discover import read_discover_info
 
 
 class ClientManager:
@@ -53,10 +54,25 @@ class ClientManager:
 
     def run_bench(self, name, runs=1):
         recipe = self.recipe_loader.load_recipe(name)
-        target_endpoint = recipe.target.get('endpoint')
         
+        # Discover service endpoint if not provided
+        target_service = recipe.target.get("service")
+        if target_service:
+            try:
+                discover_info = read_discover_info(target_service)
+                node = discover_info.get("node")
+                ports = discover_info.get("ports")
+                if node and ports:
+                    target_endpoint = f"http://{node}:{ports[0]}"
+                else:
+                    raise ValueError("Incomplete discovery info")
+            except (FileNotFoundError, ValueError):
+                raise RuntimeError(f"Could not discover endpoint for service '{target_service}'")
+        else:
+            target_endpoint = recipe.target.get('endpoint')
+
         if not target_endpoint:
-            raise ValueError("Target endpoint must be specified in recipe")
+            raise ValueError("Target endpoint must be specified in recipe or discovered")
         
         results = []
         for i in range(runs):
@@ -107,3 +123,16 @@ class ClientManager:
             })
         
         return metrics
+
+    def discover_services(self):
+        try:
+            services = read_discover_info()
+            for service in services:
+                name = service['name']
+                config = {
+                    'recipe': service['recipe'],
+                    'endpoint': service.get('endpoint')
+                }
+                self.add_client(name, config)
+        except Exception as e:
+            raise RuntimeError(f"Service discovery failed: {e}")

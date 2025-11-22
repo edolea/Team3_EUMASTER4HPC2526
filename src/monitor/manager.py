@@ -13,6 +13,7 @@ from loguru import logger
 from .models import MonitorInstance, MonitorRecipe, MonitorStatus
 from .recipe_loader import MonitorRecipeLoader
 from .orchestrator import MonitorOrchestrator
+from src.discover import read_discover_info
 
 
 class MonitorManager:
@@ -249,6 +250,20 @@ class MonitorManager:
                 if node:
                     targets[spec.name] = f"{node}:{spec.port}"
                     logger.info(f"Resolved {spec.name} -> {node}:{spec.port}")
+            # Discover service if specified
+            elif spec.service:
+                try:
+                    discover_info = read_discover_info(spec.service)
+                    node = discover_info.get("node")
+                    ports = discover_info.get("ports")
+                    if node and ports:
+                        # Assuming the first port is the metrics port
+                        targets[spec.name] = f"{node}:{ports[0]}"
+                        logger.info(f"Discovered {spec.name} -> {targets[spec.name]}")
+                    else:
+                        logger.warning(f"Incomplete discovery info for {spec.service}")
+                except FileNotFoundError:
+                    logger.warning(f"Discovery file not found for service {spec.service}")
 
         return targets
 

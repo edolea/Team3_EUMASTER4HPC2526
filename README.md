@@ -47,15 +47,15 @@ All operations are orchestrated through SLURM, deploying containerized services 
 
 ### Basic Usage
 
-All commands use the Python module interface:
+All commands use the Python module interface
 
 ```bash
 # Deploy a server
 python -m  server run --recipe vllm-server
-# Output: Job ID: 12345
+# The server's endpoint is automatically discovered.
 
 # Start monitoring
-python -m  monitor start --recipe vllm-monitor --targets 12345
+python -m  monitor start --recipe vllm-monitor
 # Output: Prometheus URL: http://node-01:9090
 
 # Run benchmark
@@ -67,6 +67,14 @@ python -m  server stop-all
 ```
 
 ## Architecture
+
+### Service Discovery
+
+The framework now includes an automatic service discovery mechanism.
+
+- When a server is started with `server run`, it registers its connection details (node, port, job ID) in a local discovery file (`~/.aif/discover/`).
+- The `client` and `monitor` modules can then read this file to find the service they need to connect to, based on the service name specified in their recipes.
+- This eliminates the need to manually look up and provide node IPs, ports, or SLURM job IDs.
 
 ### Directory Structure
 
@@ -137,6 +145,8 @@ Executes benchmarks against deployed services:
 
 ### Deploy and Monitor a vLLM Server
 
+The new workflow is much simpler thanks to service discovery.
+
 ```bash
 # Start interactive session
 salloc -A p200981 -t 02:00:00 -q dev
@@ -147,10 +157,11 @@ export SLURM_ACCOUNT=p200981
 
 # Deploy server
 python -m  server run --recipe vllm-server
-# → Job ID: 12345
+# → The server is deployed and its endpoint is registered.
 
 # Start monitoring
-python -m  monitor start --recipe vllm-monitor --targets 12345
+# The monitor automatically finds the vllm-server.
+python -m  monitor start --recipe vllm-monitor
 # → Monitor ID: abc12345-...
 # → Prometheus URL: http://node-01:9090
 
@@ -159,6 +170,7 @@ ssh -L 9090:node-01:9090 <user>@meluxina.lxp.lu
 # → Browser: http://localhost:9090
 
 # Run benchmark (back in MeluXina session)
+# The client automatically finds the vllm-server.
 python -m  client run --recipe vllm-benchmark
 
 # View metrics in Prometheus
@@ -171,6 +183,8 @@ python -m  server stop-all
 ```
 
 ### Monitor Existing SLURM Job
+
+You can still monitor a job by its ID if needed.
 
 ```bash
 # Check running jobs

@@ -53,16 +53,16 @@ class ServerOrchestrator:
             return False
 
     # ------------------------------------------------------------------
-    def status(self, job_id: str) -> ServerStatus:
+    def status(self, job_id: str) -> Dict[str, any]:
         try:
             result = subprocess.run(
-                ["squeue", "-j", job_id, "--format=%T", "--noheader"],
+                ["squeue", "-j", job_id, "--format=%T,%N,%P", "--noheader"],
                 check=True,
                 capture_output=True,
                 text=True,
             )
         except subprocess.CalledProcessError:
-            return ServerStatus.COMPLETED
+            return {"status": ServerStatus.COMPLETED}
 
         status_map: Dict[str, ServerStatus] = {
             "PENDING": ServerStatus.SUBMITTED,
@@ -75,11 +75,15 @@ class ServerOrchestrator:
             "CANCELLED": ServerStatus.CANCELED,
         }
 
-        slurm_status = result.stdout.strip().splitlines()
-        if not slurm_status:
-            return ServerStatus.COMPLETED
+        output = result.stdout.strip().splitlines()
+        if not output:
+            return {"status": ServerStatus.COMPLETED}
 
-        return status_map.get(slurm_status[0], ServerStatus.RUNNING)
+        parts = output[0].split(",")
+        slurm_status, node, ports_str = parts[0], parts[1], parts[2]
+
+        status = status_map.get(slurm_status, ServerStatus.RUNNING)
+        return {"status": status, "node": node, "ports": ports_str}
 
     # ------------------------------------------------------------------
     def _build_batch_script(self, instance, recipe) -> str:

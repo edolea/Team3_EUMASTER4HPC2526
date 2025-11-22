@@ -5,8 +5,9 @@ from __future__ import annotations
 from typing import Dict, List
 
 from .recipe_loader import ServerRecipeLoader
-from .server_instance import ServerInstance
+from .server_instance import ServerInstance, ServerStatus
 from .orchestrator import ServerOrchestrator
+from src.discover import write_discover_info, clear_discover_info
 
 
 class ServerManager:
@@ -46,6 +47,14 @@ class ServerManager:
             instance.orchestrator_handle = job_id
             instance.mark_starting()
 
+            # Write discovery information
+            discover_data = {
+                "job_id": job_id,
+                "recipe_name": recipe.name,
+                "instance_id": instance.id,
+            }
+            write_discover_info(recipe.name, discover_data)
+
             name = f"{recipe.name}-{instance.id[:8]}"
             self.instances[name] = instance
             deployments.append(instance)
@@ -60,6 +69,7 @@ class ServerManager:
 
         if self.orchestrator.stop(instance.orchestrator_handle):
             instance.cancel()
+            clear_discover_info(instance.recipe_name)  # Clear discovery info
             return True
 
         return False
@@ -77,8 +87,20 @@ class ServerManager:
         status_list: List[Dict[str, str]] = []
         for name, instance in self.instances.items():
             try:
-                status = self.orchestrator.status(instance.orchestrator_handle)
-                instance.update_status(status)
+                status_info = self.orchestrator.status(instance.orchestrator_handle)
+                instance.update_status(status_info)
+
+                # Update discovery info if running
+                if instance.status == ServerStatus.RUNNING:
+                    discover_data = {
+                        "job_id": instance.orchestrator_handle,
+                        "recipe_name": instance.recipe_name,
+                        "instance_id": instance.id,
+                        "node": instance.metadata.get("node"),
+                        "ports": instance.ports,
+                    }
+                    write_discover_info(instance.recipe_name, discover_data)
+
             except Exception:
                 # Failure to query SLURM should not break status collection.
                 pass
