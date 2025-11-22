@@ -47,22 +47,48 @@ class ServerManager:
             instance.orchestrator_handle = job_id
             instance.mark_starting()
 
-            # Try to get node information immediately (for running jobs)
-            # This allows discovery to work without needing to call status separately
-            try:
-                import time
-                time.sleep(2)  # Give SLURM a moment to register the job
-                status_info = self.orchestrator.status(job_id)
-                instance.update_status(status_info)
-            except Exception:
-                pass  # If we can't get status now, it will be updated later
+            # Wait for job to be running and get node information
+            # This ensures discovery has complete and accurate information
+            print(f"Waiting for job {job_id} to start and get node assignment...")
+            node = None
+            max_wait_seconds = 300  # Wait up to 5 minutes for job to start
+            check_interval = 3
+            elapsed = 0
+            
+            while elapsed < max_wait_seconds:
+                try:
+                    import time
+                    time.sleep(check_interval)
+                    elapsed += check_interval
+                    
+                    status_info = self.orchestrator.status(job_id)
+                    instance.update_status(status_info)
+                    
+                    # Check if we got a node assignment
+                    node = instance.metadata.get("node")
+                    if node and node != "None" and node.strip():
+                        print(f"Job running on node: {node}")
+                        break
+                    
+                    # Check if job failed
+                    if instance.status in {ServerStatus.FAILED, ServerStatus.CANCELED, ServerStatus.COMPLETED}:
+                        print(f"Job ended with status: {instance.status}")
+                        break
+                        
+                except Exception as e:
+                    # Continue waiting even if status check fails
+                    pass
+            
+            if not node or node == "None":
+                print(f"Warning: Could not determine node assignment after {elapsed}s")
+                print("Discovery info will be incomplete - you may need to update it manually")
 
-            # Write discovery information with whatever info we have
+            # Write discovery information - now with actual node and ports
             discover_data = {
                 "job_id": job_id,
                 "recipe_name": recipe.name,
                 "instance_id": instance.id,
-                "node": instance.metadata.get("node"),
+                "node": node,
                 "ports": instance.ports,
             }
             write_discover_info(recipe.service_name, discover_data)

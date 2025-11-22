@@ -92,7 +92,8 @@ service:
     echo "Endpoint: http://$(hostname):${ACTUAL_PORT}"
     echo "========================================="
 
-    # Write endpoint to a file for the client to find
+    # Write ACTUAL PORT to file accessible outside container  
+    echo "${ACTUAL_PORT}" > /tmp/vllm_actual_port_${SLURM_JOB_ID}.txt
     echo "http://$(hostname):${ACTUAL_PORT}" > /tmp/vllm_endpoint_${SLURM_JOB_ID}.txt
 
     # Wait for the vLLM process to exit
@@ -101,24 +102,44 @@ service:
 
     chmod +x "$STARTUP_SCRIPT"
 
-    # Run the container
-    apptainer exec --nv --bind $CACHE_DIR:/root/.cache/huggingface $IMAGE /bin/bash "$STARTUP_SCRIPT"
-
-    # Display the final endpoint
-    echo "Final Endpoint:"
-    cat /tmp/vllm_endpoint_${SLURM_JOB_ID}.txt
-
-    # Cleanup
-    rm -f "$STARTUP_SCRIPT" /tmp/vllm_endpoint_${SLURM_JOB_ID}.txt /tmp/vllm_log_${SLURM_JOB_ID}.log
-
-    # Run the container - when this exits, all processes inside die
-    apptainer exec \
-        --nv \
+    # Run container in background with /tmp bind
+    apptainer exec --nv \
         --bind $CACHE_DIR:/root/.cache/huggingface \
-        $IMAGE \
-        /bin/bash "$STARTUP_SCRIPT"
-
+        --bind /tmp:/tmp \
+        $IMAGE /bin/bash "$STARTUP_SCRIPT" &
+    
+    CONTAINER_PID=$!
+    
+    # Wait for actual port file to appear
+    echo "Waiting for vLLM to report its port..."
+    ACTUAL_PORT=""
+    for i in {1..120}; do
+        if [ -f "/tmp/vllm_actual_port_$SLURM_JOB_ID.txt" ]; then
+            ACTUAL_PORT=$(cat /tmp/vllm_actual_port_$SLURM_JOB_ID.txt)
+            if [ -n "$ACTUAL_PORT" ] && [ "$ACTUAL_PORT" != "0" ]; then
+                echo "vLLM is running on port: $ACTUAL_PORT"
+                
+                # Update discovery file with actual port using Python
+                DISCOVERY_FILE="$HOME/.ubenchai/discover/vllm.json"
+                if [ -f "$DISCOVERY_FILE" ]; then
+                    python3 -c "import json; f=open('$DISCOVERY_FILE','r'); d=json.load(f); f.close(); d['ports']=[$ACTUAL_PORT]; f=open('$DISCOVERY_FILE','w'); json.dump(d,f,indent=2); f.close(); print('Updated discovery with port $ACTUAL_PORT')"
+                fi
+                break
+            fi
+        fi
+        sleep 1
+    done
+    
+    if [ -z "${ACTUAL_PORT}" ]; then
+        echo "Warning: Could not determine actual vLLM port"
+    fi
+    
+    # Wait for container to finish
+    wait $CONTAINER_PID
     EXIT_CODE=$?
+    
+    # Cleanup
+    rm -f "$STARTUP_SCRIPT" /tmp/vllm_endpoint_${SLURM_JOB_ID}.txt /tmp/vllm_log_${SLURM_JOB_ID}.log /tmp/vllm_actual_port_${SLURM_JOB_ID}.txt
 
     # Cleanup
     rm -f "$STARTUP_SCRIPT"
@@ -131,10 +152,10 @@ service:
 
   env:
     VLLM_HOST: "0.0.0.0"
-    VLLM_PORT: "8000"
+    VLLM_PORT: "8080"
 
   ports:
-    - 8000
+    - 8080
 
 orchestration:
   resources:

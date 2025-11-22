@@ -87,7 +87,7 @@ class MonitorManager:
         self._save_state()
 
         # Resolve target endpoints
-        targets = self._resolve_targets(recipe.targets, target_job_ids)
+        targets = self._resolve_targets(recipe, recipe.targets, target_job_ids)
         
         if not targets:
             instance.status = MonitorStatus.ERROR
@@ -214,6 +214,7 @@ class MonitorManager:
 
     def _resolve_targets(
         self,
+        recipe: MonitorRecipe,
         target_specs: List,
         job_ids: Optional[List[str]] = None,
     ) -> Dict[str, str]:
@@ -221,6 +222,7 @@ class MonitorManager:
         Resolve target services to endpoints
         
         Args:
+            recipe: MonitorRecipe object containing service_name
             target_specs: List of TargetService objects
             job_ids: Optional list of SLURM job IDs
         
@@ -250,20 +252,20 @@ class MonitorManager:
                 if node:
                     targets[spec.name] = f"{node}:{spec.port}"
                     logger.info(f"Resolved {spec.name} -> {node}:{spec.port}")
-            # Discover service if specified
-            elif spec.service:
+            # Discover service by name (use recipe's service_name to look up discovery info)
+            else:
                 try:
-                    discover_info = read_discover_info(spec.service)
+                    discover_info = read_discover_info(recipe.service_name)
                     node = discover_info.get("node")
                     ports = discover_info.get("ports")
                     if node and ports:
                         # Assuming the first port is the metrics port
                         targets[spec.name] = f"{node}:{ports[0]}"
-                        logger.info(f"Discovered {spec.name} -> {targets[spec.name]}")
+                        logger.info(f"Discovered {spec.name} -> {targets[spec.name]} (via service: {recipe.service_name})")
                     else:
-                        logger.warning(f"Incomplete discovery info for {spec.service}")
+                        logger.warning(f"Incomplete discovery info for service {recipe.service_name}")
                 except FileNotFoundError:
-                    logger.warning(f"Discovery file not found for service {spec.service}")
+                    logger.warning(f"Discovery file not found for service {recipe.service_name}")
 
         return targets
 

@@ -1,143 +1,68 @@
-from .recipe_loader import RecipeLoader
-from .client_instance import ClientInstance, RunStatus
-from .orchestrator import ClientOrchestrator
-from src.discover import read_discover_info
+import yaml
+from pathlib import Path
 
 
-class ClientManager:
-    def __init__(self, recipe_directory='recipes/clients'):
-        self.recipe_loader = RecipeLoader(recipe_directory=recipe_directory)
-        self.clients = {}
-        self._orchestrator = None
+class ClientRecipe:
+    def __init__(self, name, target, workload, dataset=None, orchestration=None, 
+                 output=None, description=None, headers=None, payload=None, service_name=None):
+        self.name = name
+        self.target = target
+        self.workload = workload
+        self.dataset = dataset or {}
+        self.orchestration = orchestration or {}
+        self.output = output or {}
+        self.description = description
+        self.headers = headers or {}
+        self.payload = payload or {}
+        self.service_name = service_name or name
+        self.image = None
+        self.resources = orchestration.get('resources', {}) if orchestration else {}
+        self.endpoints = target.get('endpoint') if target else None
+        self.ports = target.get('port') if target else None
 
-    @property
-    def orchestrator(self):
-        if self._orchestrator is None:
-            self._orchestrator = ClientOrchestrator()
-        return self._orchestrator
-
-    def add_client(self, name, config):
-        if name in self.clients:
-            raise ValueError(f"Client {name} already exists")
+    def validate(self):
+        if not self.name:
+            raise ValueError("Recipe name is required")
+        if not self.target:
+            raise ValueError("Target is required")
+        if not self.workload:
+            raise ValueError("Workload is required")
         
-        recipe = self.recipe_loader.load_recipe(config['recipe'])
-        target_endpoint = config.get('endpoint') or recipe.target.get('endpoint')
+        protocol = self.target.get('protocol', 'http')
+        if protocol not in ['http', 'https']:
+            raise ValueError(f"Unsupported protocol: {protocol}")
         
-        if not target_endpoint:
-            raise ValueError("Target endpoint must be specified")
+        pattern = self.workload.get('pattern', 'closed-loop')
+        if pattern not in ['open-loop', 'closed-loop']:
+            raise ValueError(f"Unsupported pattern: {pattern}")
         
-        client = ClientInstance(
-            recipe_name=recipe.name,
-            orchestrator_handle='local',
-            target_endpoint=target_endpoint
-        )
+        if self.workload.get('duration_seconds', 0) <= 0:
+            raise ValueError("duration_seconds must be positive")
         
-        self.clients[name] = client
-        return client
-
-    def remove_client(self, name):
-        if name not in self.clients:
-            return False
-        
-        client = self.clients[name]
-        if client.status == RunStatus.RUNNING:
-            client.stop()
-        
-        del self.clients[name]
         return True
 
-    def list_available_clients(self):
-        return self.recipe_loader.list_available_recipes()
-
-    def get_client(self, name):
-        return self.clients.get(name)
-
-    def run_bench(self, name, runs=1):
-        recipe = self.recipe_loader.load_recipe(name)
+    @classmethod
+    def from_yaml(cls, yaml_path):
+        path = Path(yaml_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Recipe file not found: {yaml_path}")
         
-        # Discover service endpoint if not provided
-        # Use service_name from recipe for discovery
-        service_name = getattr(recipe, 'service_name', None)
-        target_service = recipe.target.get("service")  # Legacy fallback
+        with open(path, 'r') as f:
+            data = yaml.safe_load(f)
         
-        discovery_key = service_name or target_service
+        recipe = cls(
+            name=data['name'],
+            target=data.get('target', {}),
+            workload=data.get('workload', {}),
+            dataset=data.get('dataset', {}),
+            orchestration=data.get('orchestration', {}),
+            output=data.get('output', {}),
+            description=data.get('description'),
+            headers=data.get('headers', {}),
+            payload=data.get('payload', {}),
+            service_name=data.get('service_name')
+        )
         
-        if discovery_key:
-            try:
-                discover_info = read_discover_info(discovery_key)
-                node = discover_info.get("node")
-                ports = discover_info.get("ports")
-                if node and ports:
-                    target_endpoint = f"http://{node}:{ports[0]}/v1/completions"
-                else:
-                    raise ValueError("Incomplete discovery info")
-            except (FileNotFoundError, ValueError):
-                raise RuntimeError(f"Could not discover endpoint for service '{discovery_key}'")
-        else:
-            target_endpoint = recipe.target.get('endpoint')
+        recipe.validate()
+        return recipe
 
-        if not target_endpoint:
-            raise ValueError("Target endpoint must be specified in recipe or discovered")
-        
-        results = []
-        for i in range(runs):
-            client = ClientInstance(
-                recipe_name=recipe.name,
-                orchestrator_handle=f'run-{i}',
-                target_endpoint=target_endpoint
-            )
-            
-            try:
-                job_id = self.orchestrator.submit(client, recipe, target_endpoint)
-                client.orchestrator_handle = job_id
-                client.start()
-                
-                self.clients[f"{name}-{client.id[:8]}"] = client
-                results.append(client)
-            
-            except Exception as e:
-                client.update_status(RunStatus.FAILED)
-                raise RuntimeError(f"Failed to run benchmark: {e}")
-        
-        return results
-
-    def stop_all(self):
-        stopped = []
-        for name, client in list(self.clients.items()):
-            if client.status == RunStatus.RUNNING:
-                try:
-                    self.orchestrator.stop(client.orchestrator_handle)
-                    client.stop()
-                    stopped.append(name)
-                except Exception:
-                    pass
-        return stopped
-
-    def collect_metrics(self):
-        metrics = []
-        for name, client in self.clients.items():
-            try:
-                status = self.orchestrator.status(client.orchestrator_handle)
-                client.update_status(status)
-            except Exception:
-                pass
-            
-            metrics.append({
-                'client_name': name,
-                **client.get_metrics()
-            })
-        
-        return metrics
-
-    def discover_services(self):
-        try:
-            services = read_discover_info()
-            for service in services:
-                name = service['name']
-                config = {
-                    'recipe': service['recipe'],
-                    'endpoint': service.get('endpoint')
-                }
-                self.add_client(name, config)
-        except Exception as e:
-            raise RuntimeError(f"Service discovery failed: {e}")
