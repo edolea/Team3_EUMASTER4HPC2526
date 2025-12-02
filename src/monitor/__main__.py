@@ -121,6 +121,42 @@ def handle_monitor_commands(args) -> None:
         if info.get('file_path'):
             print(f"Location: {info['file_path']}")
 
+    elif args.command == "export":
+        try:
+            # Parse custom queries if provided
+            custom_queries = None
+            if hasattr(args, 'queries') and args.queries:
+                custom_queries = {}
+                for query_str in args.queries.split(','):
+                    if ':' in query_str:
+                        name, desc = query_str.split(':', 1)
+                        custom_queries[name.strip()] = desc.strip()
+                    else:
+                        custom_queries[query_str.strip()] = "Custom query"
+
+            output_file = manager.export_prometheus_metrics(
+                monitor_id=args.id,
+                output_dir=args.output if hasattr(args, 'output') and args.output else None,
+                format=args.format if hasattr(args, 'format') else 'json',
+                export_type=args.type if hasattr(args, 'type') else 'instant',
+                custom_queries=custom_queries,
+                start=args.start if hasattr(args, 'start') and args.start else None,
+                end=args.end if hasattr(args, 'end') and args.end else None,
+                step=args.step if hasattr(args, 'step') else '15s',
+            )
+
+            if output_file:
+                print(f"\n✓ Metrics exported successfully!")
+                print(f"   File: {output_file}")
+            else:
+                print(f"✗ Failed to export metrics", file=sys.stderr)
+                sys.exit(1)
+
+        except Exception as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            logger.exception("Failed to export metrics")
+            sys.exit(1)
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build standalone CLI parser for monitor module"""
@@ -156,6 +192,18 @@ def build_parser() -> argparse.ArgumentParser:
     # Recipe info
     info_parser = subparsers.add_parser("info", help="Show information about a recipe")
     info_parser.add_argument("--recipe", required=True, help="Recipe name")
+
+    # Export metrics
+    export_parser = subparsers.add_parser("export", help="Export Prometheus metrics to JSON/CSV")
+    export_parser.add_argument("--id", required=True, help="Monitor ID")
+    export_parser.add_argument("--format", choices=["json", "csv"], default="json", help="Output format")
+    export_parser.add_argument("--type", choices=["instant", "range", "all"], default="instant",
+                              help="Export type: instant (current values), range (time-series), all (all metrics)")
+    export_parser.add_argument("--output", help="Output directory (default: logs/monitors/<id>/metrics/)")
+    export_parser.add_argument("--queries", help="Comma-separated custom queries (format: metric:description)")
+    export_parser.add_argument("--start", help="Start time for range queries (RFC3339 or Unix timestamp)")
+    export_parser.add_argument("--end", help="End time for range queries (RFC3339 or Unix timestamp)")
+    export_parser.add_argument("--step", default="15s", help="Step size for range queries (default: 15s)")
 
     return parser
 

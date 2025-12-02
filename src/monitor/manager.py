@@ -6,13 +6,14 @@ import uuid
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Literal
 
 from loguru import logger
 
 from .models import MonitorInstance, MonitorRecipe, MonitorStatus
 from .recipe_loader import MonitorRecipeLoader
 from .orchestrator import MonitorOrchestrator
+from .exporter import PrometheusExporter
 from src.discover import read_discover_info
 
 
@@ -205,6 +206,95 @@ class MonitorManager:
         out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         logger.info(f"Exported monitor snapshot to {out}")
         return out
+
+    def export_prometheus_metrics(
+        self,
+        monitor_id: str,
+        output_dir: Optional[str] = None,
+        format: Literal["json", "csv"] = "json",
+        export_type: Literal["instant", "range", "all"] = "instant",
+        custom_queries: Optional[Dict[str, str]] = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        step: str = "15s"
+    ) -> Optional[Path]:
+        """
+        Export Prometheus metrics to human-readable format
+        
+        Args:
+            monitor_id: Monitor instance ID
+            output_dir: Output directory (defaults to logs/monitors/<id>/metrics/)
+            format: Output format (json or csv)
+            export_type: Type of export (instant, range, or all)
+            custom_queries: Custom PromQL queries {name: description}
+            start: Start time for range queries
+            end: End time for range queries
+            step: Step size for range queries
+            
+        Returns:
+            Path to exported file or None if failed
+        """
+        logger.info(f"Exporting Prometheus metrics for monitor: {monitor_id}")
+        
+        inst = self._instances.get(monitor_id)
+        if not inst:
+            logger.warning(f"Monitor not found: {monitor_id}")
+            return None
+        
+        if not inst.prometheus_url:
+            logger.error(f"Monitor {monitor_id} has no Prometheus instance")
+            return None
+        
+        # Setup output directory
+        if output_dir is None:
+            output_dir = str(self.output_root / monitor_id / "metrics")
+        
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        # Generate filename
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        filename = f"prometheus_metrics_{export_type}_{timestamp}.{format}"
+        output_file = output_path / filename
+        
+        # Create exporter
+        exporter = PrometheusExporter(inst.prometheus_url, service_name=inst.recipe.service_name)
+        
+        # Test connection
+        if not exporter.test_connection():
+            logger.error(f"Cannot connect to Prometheus at {inst.prometheus_url}")
+            return None
+        
+        # Export based on type
+        success = False
+        
+        if export_type == "instant":
+            success = exporter.export_instant_metrics(
+                output_file,
+                queries=custom_queries,
+                format=format
+            )
+        elif export_type == "range":
+            success = exporter.export_range_metrics(
+                output_file,
+                queries=custom_queries,
+                start=start,
+                end=end,
+                step=step,
+                format=format
+            )
+        elif export_type == "all":
+            success = exporter.export_all_available_metrics(
+                output_file,
+                format=format
+            )
+        
+        if success:
+            logger.info(f"✓ Successfully exported metrics to {output_file}")
+            return output_file
+        else:
+            logger.error(f"✗ Failed to export metrics")
+            return None
 
     def shutdown(self) -> None:
         """Stop all running instances"""

@@ -147,6 +147,7 @@ Deploys Prometheus monitoring stacks:
 - **Recipe-Based**: YAML configs for monitoring stacks
 - **Component Tracking**: Manages Prometheus lifecycle
 - **State Persistence**: Tracks monitors across sessions
+- **Metrics Export**: Export Prometheus data to JSON/CSV with service-specific metrics
 
 Key components:
 
@@ -203,6 +204,13 @@ python -m src.client run --recipe vllm-simple-test
 # View metrics in Prometheus
 # → Targets: http://localhost:9090/targets
 # → Graphs: http://localhost:9090/graph
+
+# Export metrics to JSON/CSV for analysis
+python -m src.monitor export --id abc12345 --format json --type instant
+# → Metrics saved to logs/monitors/abc12345.../metrics/
+
+python -m src.monitor export --id abc12345 --format csv --type range
+# → Time-series data exported to CSV
 
 # Cleanup
 python -m src.monitor stop-all

@@ -89,6 +89,18 @@ def main():
     monitor_info_parser = monitor_subparsers.add_parser("info", help="Get recipe info")
     monitor_info_parser.add_argument("--recipe", required=True, help="Recipe name")
     
+    # Monitor: export
+    monitor_export_parser = monitor_subparsers.add_parser("export", help="Export Prometheus metrics to JSON/CSV")
+    monitor_export_parser.add_argument("--id", required=True, help="Monitor ID")
+    monitor_export_parser.add_argument("--format", choices=["json", "csv"], default="json", help="Output format")
+    monitor_export_parser.add_argument("--type", choices=["instant", "range", "all"], default="instant",
+                                       help="Export type: instant (current values), range (time-series), all (all metrics)")
+    monitor_export_parser.add_argument("--output", help="Output directory (default: logs/monitors/<id>/metrics/)")
+    monitor_export_parser.add_argument("--queries", help="Comma-separated custom queries (format: metric:description)")
+    monitor_export_parser.add_argument("--start", help="Start time for range queries (RFC3339 or Unix timestamp)")
+    monitor_export_parser.add_argument("--end", help="End time for range queries (RFC3339 or Unix timestamp)")
+    monitor_export_parser.add_argument("--step", default="15s", help="Step size for range queries (default: 15s)")
+    
     args = parser.parse_args()
     
     if not args.module:

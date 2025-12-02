@@ -86,6 +86,10 @@ python -m src.monitor stop-all
 
 # Recipe info
 python -m src.monitor info --recipe <name>
+
+# Export Prometheus metrics
+python -m src.monitor export --id <monitor-id> [--format json|csv] [--type instant|range|all]
+python -m src.monitor export --id <monitor-id> --format csv --type range --start "2025-12-02T10:00:00Z" --end "2025-12-02T11:00:00Z"
 ```
 
 ## Client Commands
@@ -131,7 +135,14 @@ python -m src.client run --recipe vllm-simple-test
 # → http://localhost:9090/targets
 # → http://localhost:9090/graph
 
-# 7. Cleanup
+# 7. Export metrics to JSON/CSV
+python -m src.monitor export --id abc123 --format json --type instant
+# → Exported to logs/monitors/abc123.../metrics/prometheus_metrics_instant_*.json
+
+python -m src.monitor export --id abc123 --format csv --type range
+# → Exported to logs/monitors/abc123.../metrics/prometheus_metrics_range_*.csv
+
+# 8. Cleanup
 python -m src.monitor stop-all
 python -m src.server stop-all
 python -m src.clear_services
@@ -238,6 +249,24 @@ print(instance.targets)           # Resolved targets
 # Get status
 status = mgr.get_monitor_status(instance.id)
 
+# Export metrics
+exported_file = mgr.export_prometheus_metrics(
+    monitor_id=instance.id,
+    format="json",  # or "csv"
+    export_type="instant"  # or "range" or "all"
+)
+print(f"Metrics exported to: {exported_file}")
+
+# Export time-series data
+exported_file = mgr.export_prometheus_metrics(
+    monitor_id=instance.id,
+    format="csv",
+    export_type="range",
+    start="2025-12-02T10:00:00Z",
+    end="2025-12-02T11:00:00Z",
+    step="30s"
+)
+
 # Stop
 mgr.stop_monitor(instance.id)
 ```
@@ -288,6 +317,114 @@ root/
    ├── instances.json          # Persistent state
    └── slurm/                  # SLURM job logs
  config/slurm.yml            # Configuration
+```
+
+## Metrics Export
+
+### Export Prometheus Metrics to JSON/CSV
+
+Export metrics from a running Prometheus instance to human-readable formats for analysis, reporting, or sharing.
+
+```bash
+# Get monitor ID
+python -m src.monitor list
+# → Monitor ID: abc12345-6789-...
+
+# Export instant snapshot (current values)
+python -m src.monitor export --id abc12345 --format json --type instant
+# → Exported to logs/monitors/abc12345.../metrics/prometheus_metrics_instant_*.json
+
+# Export time-series data (last hour by default)
+python -m src.monitor export --id abc12345 --format csv --type range
+# → Exported to logs/monitors/abc12345.../metrics/prometheus_metrics_range_*.csv
+
+# Export specific time range
+python -m src.monitor export --id abc12345 --format json --type range \
+  --start "2025-12-02T10:00:00Z" --end "2025-12-02T11:00:00Z" --step "30s"
+
+# Export all available metrics
+python -m src.monitor export --id abc12345 --format json --type all
+```
+
+### Service-Specific Metrics
+
+The exporter automatically selects appropriate metrics based on the service being monitored:
+
+**Common metrics (always included):**
+
+- `process_cpu_seconds_total` - Total CPU time
+- `process_resident_memory_bytes` - Memory usage
+- `http_requests_total` - HTTP request count
+
+**Service-specific metrics:**
+
+- **vLLM**: Request metrics, token generation timing, cache usage, queue depth
+- **Ollama**: Request duration, model loading time
+- **Qdrant**: Collections, points, search performance
+- **Prometheus**: TSDB metrics, sample counts
+
+The service type is determined from the monitor recipe's `service_name` field.
+
+### Export Formats
+
+**JSON format:**
+
+```json
+{
+  "exported_at": "2025-12-02T15:30:00Z",
+  "prometheus_url": "http://node01:9090",
+  "metrics": {
+    "vllm_requests_total": {
+      "description": "Total number of requests",
+      "result_type": "vector",
+      "values": [...]
+    }
+  }
+}
+```
+
+**CSV format:**
+
+```csv
+Metric,Description,Labels,Value,Timestamp
+vllm_requests_total,Total number of requests,{...},1234,2025-12-02T15:30:00
+```
+
+### Python API
+
+```python
+from src.monitor import MonitorManager
+
+mgr = MonitorManager()
+
+# Export instant metrics
+file_path = mgr.export_prometheus_metrics(
+    monitor_id="abc12345",
+    format="json",
+    export_type="instant"
+)
+
+# Export time-series with custom queries
+from src.monitor.exporter import PrometheusExporter
+
+exporter = PrometheusExporter(
+    prometheus_url="http://node01:9090",
+    service_name="vllm"  # Auto-selects vLLM metrics
+)
+
+custom_queries = {
+    "vllm_requests_total": "Total requests",
+    "vllm_gpu_cache_usage_perc": "GPU cache usage"
+}
+
+exporter.export_range_metrics(
+    output_path=Path("my_metrics.json"),
+    queries=custom_queries,
+    start="2025-12-02T10:00:00Z",
+    end="2025-12-02T11:00:00Z",
+    step="15s",
+    format="json"
+)
 ```
 
 ## Troubleshooting
