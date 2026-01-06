@@ -107,9 +107,9 @@ service:
         --bind $CACHE_DIR:/root/.cache/huggingface \
         --bind /tmp:/tmp \
         $IMAGE /bin/bash "$STARTUP_SCRIPT" &
-    
+
     CONTAINER_PID=$!
-    
+
     # Wait for actual port file to appear
     echo "Waiting for vLLM to report its port..."
     ACTUAL_PORT=""
@@ -120,7 +120,7 @@ service:
                 echo "vLLM is running on port: $ACTUAL_PORT"
                 
                 # Update discovery file with actual port using Python
-                DISCOVERY_FILE="$HOME/.ubenchai/discover/vllm.json"
+                DISCOVERY_FILE="$HOME/.aibenchmark/discover/vllm.json"
                 if [ -f "$DISCOVERY_FILE" ]; then
                     python3 -c "import json; f=open('$DISCOVERY_FILE','r'); d=json.load(f); f.close(); d['ports']=[$ACTUAL_PORT]; f=open('$DISCOVERY_FILE','w'); json.dump(d,f,indent=2); f.close(); print('Updated discovery with port $ACTUAL_PORT')"
                 fi
@@ -129,15 +129,15 @@ service:
         fi
         sleep 1
     done
-    
+
     if [ -z "${ACTUAL_PORT}" ]; then
         echo "Warning: Could not determine actual vLLM port"
     fi
-    
+
     # Wait for container to finish
     wait $CONTAINER_PID
     EXIT_CODE=$?
-    
+
     # Cleanup
     rm -f "$STARTUP_SCRIPT" /tmp/vllm_endpoint_${SLURM_JOB_ID}.txt /tmp/vllm_log_${SLURM_JOB_ID}.log /tmp/vllm_actual_port_${SLURM_JOB_ID}.txt
 

@@ -77,7 +77,7 @@ The framework includes automatic service discovery that eliminates manual endpoi
 
 **How it works:**
 
-- When a server starts, it automatically registers its connection details (node, port, job ID) in `~/.ubenchai/discover/`
+- When a server starts, it automatically registers its connection details (node, port, job ID) in `~/.aibenchmark/discover/`
 - All recipes now include a `service_name` field (e.g., `vllm`) that links server, client, and monitor
 - Clients and monitors automatically find servers by looking up the `service_name`
 - No more copying job IDs or endpoints between commands!

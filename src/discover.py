@@ -7,7 +7,7 @@ import json
 import os
 from typing import Dict, Any
 
-DISCOVERY_DIR = os.path.expanduser("~/.ubenchai/discover")
+DISCOVERY_DIR = os.path.expanduser("~/.aibenchmark/discover")
 
 
 def get_discover_path(service_name: str) -> str:

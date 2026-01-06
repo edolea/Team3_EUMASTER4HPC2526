@@ -496,7 +496,7 @@ http://localhost:9090
 - Always work in an interactive session (salloc) - Python not available on login nodes
 - All recipes for the same service should use the same `service_name` field
 - Use `python -m src.list_services` to debug service discovery issues
-- Discovery info is stored in `~/.ubenchai/discover/`
+- Discovery info is stored in `~/.aibenchmark/discover/`
 - Monitor IDs are UUIDs - use first 8 chars for convenience
 - Prometheus retains metrics based on `retention_time` in recipe
 - Stop monitors when done to free SLURM resources
