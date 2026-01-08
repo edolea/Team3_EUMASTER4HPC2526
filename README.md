@@ -37,7 +37,7 @@ All operations are orchestrated through SLURM, deploying containerized services 
 
    ```bash
    cd /path/to/repo/
-   ./setup.sh
+   source ./setup.sh
    ```
 
 4. **Configure environment**
@@ -175,7 +175,7 @@ With automatic service discovery, the workflow is now streamlined:
 salloc -A p200981 -t 02:00:00 -q dev
 
 # Run setup
-./setup.sh
+source ./setup.sh
 export SLURM_ACCOUNT=p200981
 
 # Deploy server (automatically registers as 'vllm')
@@ -192,10 +192,6 @@ python -m src.list_services
 python -m src.monitor start --recipe vllm-monitor
 # → Monitor ID: abc12345-...
 # → Prometheus: http://node-01:9090
-
-# Access Prometheus (from your local machine, open new terminal)
-ssh -L 9090:node-01:9090 <user>@meluxina.lxp.lu
-# → Browser: http://localhost:9090
 
 # Run benchmark (automatically finds 'vllm' service)
 python -m src.client run --recipe vllm-simple-test
@@ -258,7 +254,7 @@ squeue -u $USER
 Install on MeluXina:
 
 ```bash
-./setup.sh  # On MeluXina with interactive session
+source ./setup.sh  # On MeluXina with interactive session
 ```
 
 ## License

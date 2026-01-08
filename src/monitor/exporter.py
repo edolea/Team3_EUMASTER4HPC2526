@@ -3,14 +3,13 @@ Prometheus Metrics Exporter
 
 Exports Prometheus metrics to human-readable formats (JSON/CSV)
 """
-from __future__ import annotations
 
 import csv
 import json
 import requests
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Literal
+from typing import Dict, List, Optional, Any
 
 from loguru import logger
 
@@ -18,29 +17,34 @@ from loguru import logger
 class PrometheusExporter:
     """Export Prometheus metrics to JSON/CSV formats"""
 
-    # Common system and HTTP metrics (always included)
+    # Common system metrics (always included)
     COMMON_QUERIES = {
         # System metrics
         "process_cpu_seconds_total": "Total CPU time",
         "process_resident_memory_bytes": "Resident memory in bytes",
         "process_virtual_memory_bytes": "Virtual memory in bytes",
-        
-        # HTTP metrics
-        "http_request_duration_seconds": "HTTP request duration",
-        "http_requests_total": "Total HTTP requests",
     }
     
     # Service-specific metrics registry
     SERVICE_METRICS = {
         "vllm": {
-            "vllm_requests_total": "Total number of requests",
-            "vllm_request_duration_seconds": "Request duration in seconds",
-            "vllm_time_to_first_token_seconds": "Time to first token in seconds",
-            "vllm_time_per_output_token_seconds": "Time per output token in seconds",
-            "vllm_num_requests_running": "Number of running requests",
-            "vllm_num_requests_waiting": "Number of waiting requests",
-            "vllm_gpu_cache_usage_perc": "GPU cache usage percentage",
-            "vllm_cpu_cache_usage_perc": "CPU cache usage percentage",
+            # Note: vLLM uses colon (:) as namespace separator
+            "vllm:request_success_total": "Total number of successful requests",
+            "vllm:e2e_request_latency_seconds_sum": "Total end-to-end request latency",
+            "vllm:e2e_request_latency_seconds_count": "Count of request latency measurements",
+            "vllm:time_to_first_token_seconds_sum": "Total time to first token",
+            "vllm:time_to_first_token_seconds_count": "Count of time to first token measurements",
+            "vllm:time_per_output_token_seconds_sum": "Total time per output token",
+            "vllm:time_per_output_token_seconds_count": "Count of time per output token measurements",
+            "vllm:num_requests_running": "Number of running requests",
+            "vllm:num_requests_waiting": "Number of waiting requests",
+            "vllm:num_requests_swapped": "Number of swapped requests",
+            "vllm:gpu_cache_usage_perc": "GPU cache usage percentage",
+            "vllm:cpu_cache_usage_perc": "CPU cache usage percentage",
+            "vllm:prompt_tokens_total": "Total number of prompt tokens processed",
+            "vllm:generation_tokens_total": "Total number of generation tokens produced",
+            "vllm:avg_prompt_throughput_toks_per_s": "Average prompt throughput (tokens/s)",
+            "vllm:avg_generation_throughput_toks_per_s": "Average generation throughput (tokens/s)",
         },
         "prometheus": {
             "prometheus_tsdb_head_series": "Total number of series in the head block",
@@ -194,7 +198,7 @@ class PrometheusExporter:
         self,
         output_path: Path,
         queries: Optional[Dict[str, str]] = None,
-        format: Literal["json", "csv"] = "json"
+        format: str = "json"
     ) -> bool:
         """
         Export instant metric values to file
@@ -256,7 +260,7 @@ class PrometheusExporter:
         start: Optional[str] = None,
         end: Optional[str] = None,
         step: str = "15s",
-        format: Literal["json", "csv"] = "json"
+        format: str = "json"
     ) -> bool:
         """
         Export time-series metric data to file
@@ -403,7 +407,7 @@ class PrometheusExporter:
     def export_all_available_metrics(
         self,
         output_path: Path,
-        format: Literal["json", "csv"] = "json"
+        format: str = "json"
     ) -> bool:
         """
         Export all currently available metrics
