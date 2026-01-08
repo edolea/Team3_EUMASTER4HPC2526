@@ -1,0 +1,11 @@
+{
+  "total_requests": 1593,
+  "successes": 1593,
+  "errors": 0,
+  "avg_latency_ms": 276.59,
+  "min_latency_ms": 36.8,
+  "max_latency_ms": 507.29,
+  "throughput_req_per_sec": 2.65,
+  "duration_seconds": 600.13,
+  "timestamp": "2026-01-08T12:46:52.430793"
+}
