@@ -1,0 +1,43 @@
+name: vllm-high-throughput-test
+service_name: vllm
+description: High throughput test for vLLM - tests scheduler and batching efficiency
+
+target:
+  protocol: http
+  timeout_seconds: 60
+
+workload:
+  pattern: closed-loop
+  duration_seconds: 600 # 10 minutes
+  concurrent_users: 50 # High concurrency for maximum throughput
+  think_time_ms: 50 # Minimal think time
+
+dataset:
+  type: synthetic
+  params:
+    prompt_length: 20 # Very short prompts
+    max_tokens: 10 # Minimal generation
+    num_prompts: 1000
+    temperature: 0.7
+    top_p: 0.9
+    model_name: facebook/opt-125m
+
+orchestration:
+  mode: slurm
+  resources:
+    partition: cpu
+    cpu_cores: 8
+    memory_gb: 16
+    time_limit: "00:30:00"
+
+output:
+  metrics:
+    - latency
+    - throughput
+    - errors
+    - success_rate
+    - p50
+    - p95
+    - p99
+  format: json
+  destination: ./results

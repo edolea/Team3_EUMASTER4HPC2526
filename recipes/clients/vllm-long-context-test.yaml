@@ -1,0 +1,43 @@
+name: vllm-long-context-test
+service_name: vllm
+description: Long context stress test for vLLM - tests memory limits and attention scaling
+
+target:
+  protocol: http
+  timeout_seconds: 180 # Longer timeout for large context processing
+
+workload:
+  pattern: closed-loop
+  duration_seconds: 600 # 10 minutes
+  concurrent_users: 5 # Lower concurrency due to memory-intensive requests
+  think_time_ms: 500
+
+dataset:
+  type: synthetic
+  params:
+    prompt_length: 2048 # Large context input
+    max_tokens: 512 # Substantial generation
+    num_prompts: 100
+    temperature: 0.7
+    top_p: 0.9
+    model_name: facebook/opt-125m
+
+orchestration:
+  mode: slurm
+  resources:
+    partition: cpu
+    cpu_cores: 8
+    memory_gb: 32 # More memory for large context
+    time_limit: "00:30:00"
+
+output:
+  metrics:
+    - latency
+    - throughput
+    - errors
+    - success_rate
+    - p50
+    - p95
+    - p99
+  format: json
+  destination: ./results
