@@ -113,6 +113,7 @@
 
 \date{12 January 2026}
 
+
 \begin{document}
 
 \maketitle
@@ -132,25 +133,17 @@ This report presents our implementation for the EUMaster4HPC Student Challenge 2
 
 The artificial intelligence landscape is undergoing a fundamental transformation with the emergence of AI Factories, large-scale inference platforms designed to serve AI models at production scale. Unlike traditional research-focused deployments, AI Factories represent the industrialization of AI, where models must deliver consistent, low-latency responses to thousands of concurrent users while maintaining cost efficiency and reliability.
 
-This shift from experimentation to production has been driven by multiple interconnected factors. The explosion of \textbf{foundation models}, including large language models, vision models, and multimodal systems, has created unprecedented demand for specialized inference infrastructure capable of handling production workloads. Organizations across industries are moving beyond proof-of-concept deployments and adopting AI as \textbf{mission-critical technology}, requiring robust infrastructure with enterprise-grade reliability. The \textbf{scale requirements} have grown dramatically, with single inference endpoints now expected to serve millions of requests daily. At the same time, there is mounting pressure to optimize \textbf{GPU utilization} and reduce inference costs, as infrastructure budgets become increasingly constrained. These factors combined have transformed AI from a research curiosity into a production engineering problem.
-
-\subsection{Why HPC Clusters Need Better Benchmarking}
-
-HPC clusters are a perfect fit for AI Factories, but they are not used enough. Cloud providers dominate AI inference today, yet HPC systems have clear benefits. \textbf{GPU accelerators} such as NVIDIA A100 and H100 provide state-of-the-art performance with fast interconnections between nodes. \textbf{University infrastructure} eliminates the hourly charges typical of cloud services, making long-term deployments more economical. Inference workloads can run close to training data and other research activities, reducing data movement and latency. Most importantly, \textbf{SLURM} provides precise control over CPU, memory, and GPU allocation, allowing researchers to optimize resource usage for their specific needs.
-
-However, using HPC for AI Factories creates problems that cloud platforms do not have. \textbf{SLURM complexity} arises from running inference services as batch jobs instead of traditional always-on containerized deployments. \textbf{Dynamic allocation} means services are assigned to different compute nodes each time a job is submitted. There is no built-in DNS or load balancing mechanism for dynamically allocated services, forcing users to manually track endpoints. \textbf{Monitoring tools} like Prometheus were designed for static cloud environments and do not naturally handle ephemeral HPC jobs. Additionally, \textbf{Apptainer} security models differ fundamentally from Docker and Kubernetes paradigms, requiring different approaches to container management and resource isolation.
-
-Current benchmarking tools do not work well for HPC. They have three fundamental problems. First, \textbf{cloud-centric tooling} such as Locust, K6, and wrk expect fixed HTTP endpoints and do not integrate with SLURM schedulers. These tools cannot handle the dynamic nature of HPC job allocation or coordinate monitoring across temporary compute nodes that are created and destroyed with each job submission. Second, the current approach requires \textbf{manual setup processes} including copying job IDs, extracting node names, and configuring Prometheus targets. These error-prone steps introduce variability and make results unreliable, causing a \textbf{reproducibility crisis} where most published benchmarks cannot be repeated by other researchers due to undocumented configuration details. Third, \textbf{incomplete metrics} focus exclusively on latency and throughput but ignore HPC-specific concerns such as GPU cache utilization, memory bandwidth saturation, scheduler overhead, and multi-tenant interference from other users. Without these specialized metrics, researchers cannot effectively optimize inference workloads for HPC characteristics and cannot understand how their systems perform under realistic production conditions.
+This shift from experimentation to production has been driven by multiple interconnected factors. The explosion of \textbf{foundation models}, including large language models, vision models, and multimodal systems, has created unprecedented demand for specialized inference infrastructure capable of handling production workloads. Organizations across industries are moving beyond proof-of-concept deployments and adopting AI in more and more scenarios, requiring robust infrastructure with enterprise-grade reliability. The \textbf{scale requirements} have grown dramatically, with single inference endpoints now expected to serve millions of requests daily. At the same time, there is mounting pressure to optimize \textbf{GPU utilization} and reduce inference costs, as infrastructure budgets become increasingly constrained. These factors combined have transformed AI from a research curiosity into a production engineering problem.
 
 HPC-based AI Factories need a unified framework that simplifies SLURM integration while preserving access to important HPC features. The framework must provide automatic service discovery in dynamic environments where node assignments change with each deployment. It should collect HPC-specific monitoring metrics beyond standard cloud benchmarks. The system must make benchmarks reproducible through declarative configuration files that can be version-controlled and shared among researchers. Finally, it needs to bridge the gap between cloud AI tools and HPC infrastructure, bringing modern AI development practices to supercomputers while respecting the unique constraints and opportunities that HPC environments offer.
 
 \subsection{Project Goals}
 
-Our application was developed to meet several key objectives. The framework provides a \textbf{unified command-line interface} that handles server deployment, monitoring, and benchmarking through a single consistent tool. It \textbf{eliminates manual endpoint management} through automatic service discovery, removing the need to manually track and configure service addresses. The system enables \textbf{recipe-based configuration} that makes deployments reproducible and shareable across teams. It fully \textbf{supports GPU-accelerated inference servers} on HPC clusters, taking advantage of supercomputer hardware for AI workloads. \textbf{Prometheus monitoring is integrated} with automatic target resolution, so that metric collection is set up without manual configuration. Finally, the framework \textbf{facilitates performance benchmarking} with configurable workload patterns, allowing researchers to test their systems under diverse conditions.
+The framework provides a \textbf{unified command-line interface} that handles server deployment, monitoring, and benchmarking through a single consistent tool. It \textbf{eliminates manual endpoint management} through automatic service discovery, removing the need to manually track and configure service addresses. The system enables \textbf{recipe-based configuration} that makes deployments reproducible and shareable across teams. It fully \textbf{supports GPU-accelerated inference servers} on HPC clusters, taking advantage of supercomputer hardware for AI workloads. \textbf{Prometheus monitoring is integrated} with automatic target resolution, so that metric collection is set up without manual configuration. Finally, the framework \textbf{facilitates performance benchmarking} with configurable workload patterns, allowing researchers to test their systems under diverse conditions.
 
 \subsection{Target Platform: MeluXina}
 
-MeluXina is Luxembourg's national supercomputer, featuring AMD EPYC processors and NVIDIA A100 GPUs. The framework is specifically designed to work with the \textbf{SLURM workload manager} for job scheduling, which is the standard scheduler on HPC systems. It uses \textbf{Apptainer} (formerly Singularity) for secure containerization of inference workloads. The system integrates with the \textbf{module system} for managing software environments across different compute nodes. Finally, it takes advantage of \textbf{shared scratch storage} available on supercomputers for storing container images and benchmark data.
+MeluXina is Luxembourg's national supercomputer, featuring AMD EPYC processors and NVIDIA A100 GPUs. The framework is specifically designed to work with the \textbf{SLURM workload manager} for job scheduling, which is the standard scheduler on HPC systems. It uses \textbf{Apptainer} (formerly Singularity) for secure containerization of inference workloads. The system integrates with the \textbf{module system} for managing software environments across different compute nodes.
 
 %==============================================================================
 \section{System Architecture}
@@ -389,7 +382,7 @@ The \texttt{ClientOrchestrator} class handles SLURM integration for benchmark jo
 
 The orchestrator builds batch scripts that invoke the workload runner with appropriate parameters derived from the recipe configuration. It handles both closed-loop and open-loop workload patterns, constructing command-line arguments for duration, concurrency, think time, and request payloads. The orchestrator also manages resource allocation, ensuring benchmark jobs receive sufficient CPU and memory to generate their target workload without becoming resource-constrained.
 
-Core responsibilities include \texttt{submit(run, recipe, target\_endpoint)} which generates and submits benchmark jobs, \texttt{stop(job\_id)} which cancels running benchmarks using \texttt{scancel}, \texttt{status(job\_id)} which queries SLURM for job state, and \texttt{\_build\_workload\_command()} which constructs the Python invocation for the workload runner with all necessary parameters. The orchestrator also handles payload generation from dataset specifications, supporting both synthetic datasets defined inline and custom datasets loaded from files.
+Core responsibilities include \texttt{submit(run, recipe, target\_endpoint)} which generates and submits benchmark jobs, \texttt{stop(job\_id)} which cancels running benchmarks using \texttt{scancel}, \texttt{status(job\_id)} which queries SLURM for job state. The orchestrator also handles payload generation from dataset specifications, supporting both synthetic datasets defined inline and custom datasets loaded from files.
 
 \subsubsection{ClientInstance}
 
@@ -523,9 +516,9 @@ The \texttt{MonitorManager} class orchestrates the complete monitoring lifecycle
 
 The manager integrates deeply with the service discovery mechanism. When starting a monitor, it reads discovery information for target services and automatically resolves their endpoints. This eliminates manual configuration of Prometheus scrape targets and ensures monitoring adapts dynamically as services are deployed or redeployed to different compute nodes.
 
-Key methods include \texttt{start\_monitor(recipe\_name, target\_job\_ids, metadata)} which deploys a Prometheus instance with automatic target resolution, \texttt{stop\_monitor(monitor\_id)} which terminates a monitoring stack and cancels all component jobs, \texttt{list\_running\_monitors()} which returns currently active monitors, \texttt{export\_metrics(monitor\_id, format, export\_type)} which exports collected metrics to JSON or CSV formats, and \texttt{\_resolve\_targets(recipe, targets, job\_ids)} which converts service names to actual host:port endpoints using discovery data.
+Key methods include \texttt{start\_monitor(recipe\_name, target\_job\_ids, metadata)} which deploys a Prometheus instance with automatic target resolution, \texttt{stop\_monitor(id)} which terminates a monitoring stack and cancels all component jobs, \texttt{export\_metrics(id, format, export\_type)} which exports collected metrics to JSON or CSV formats, and \texttt{\_resolve\_targets(recipe, targets, job\_ids)} which converts service names to actual host:port endpoints using discovery data.
 
-The manager also implements state persistence through \texttt{\_save\_state()} and \texttt{\_load\_state()} methods, writing instance collections to disk and restoring them on initialization. This ensures monitoring continuity across framework restarts.
+The manager also implements state persistence through \texttt{\_save\_state()} and \texttt{\_load \_state()} methods, writing instance collections to disk and restoring them on initialization. This ensures monitoring continuity across framework restarts.
 
 \subsubsection{MonitorOrchestrator}
 
@@ -543,7 +536,7 @@ The \texttt{PrometheusExporter} class provides metrics export functionality, que
 
 The exporter maintains registries of common system metrics (CPU, memory, network) and service-specific metrics for vLLM, Ollama, and other AI frameworks. When exporting metrics, it selects the appropriate metric set based on the service name, ensuring relevant data is collected without overwhelming users with unnecessary metrics.
 
-Key methods include \texttt{query\_instant(query)} which executes immediate PromQL queries returning current metric values, \texttt{query\_range(query, start, end, step)} which executes time-range queries for historical data, \texttt{export\_instant\_metrics(output\_file, format, service\_name)} which exports current metric snapshots, \texttt{export\_range\_metrics(output\_file, format, start, end, service\_name)} which exports time-series data, and \texttt{get\_queries\_for\_service(service\_name)} which returns appropriate metric queries for a specific service.
+Key methods include \texttt{query\_instant(query)} which executes immediate PromQL queries returning current metric values, \texttt{query\_range(query, start, end, step)} which executes time-range queries for historical data, \texttt{export\_instant\_metrics(output\_file, format, service\_name)} which exports current metric snapshots, \texttt{export\_range\_metrics( output\_file, format, start, end, service\_name)} which exports time-series data, and \texttt{get\_queries\_for\_service(service\_name)} which returns appropriate metric queries for a specific service.
 
 The exporter supports both JSON and CSV output formats. JSON format provides structured data suitable for programmatic analysis, while CSV format enables easy import into spreadsheet applications and data analysis tools. The CSV exporter includes metadata headers documenting Prometheus URL, time range, and scrape interval.
 
@@ -559,7 +552,7 @@ Instances support serialization to and from dictionaries, enabling persistent st
 
 The \texttt{MonitorRecipe} class represents a parsed monitoring specification loaded from YAML files. Each recipe defines target services to monitor, Prometheus configuration including scrape intervals and retention time, and resource requirements for the monitoring stack.
 
-The recipe implements validation logic ensuring target specifications are complete and Prometheus configuration is valid. It provides the \texttt{to\_prometheus\_config(resolved\_targets)} method which generates Prometheus YAML configuration from recipe specifications and resolved endpoint mappings.
+The recipe implements validation logic ensuring target specifications are complete and Prometheus configuration is valid. It provides the \texttt{to\_prometheus\_config(targets)} method which generates Prometheus YAML configuration from recipe specifications and resolved endpoint mappings.
 
 Key properties include \texttt{targets} which lists \texttt{TargetService} objects specifying what to monitor, \texttt{prometheus} which contains \texttt{PrometheusConfig} with scrape interval, retention time, port, and resource settings, \texttt{service\_name} which links to service discovery, and \texttt{name} which uniquely identifies the recipe.
 
@@ -722,7 +715,7 @@ The \textbf{dataset configuration} defines the request payloads sent to the serv
 
 \subsubsection{Naming Conventions and Best Practices}
 
-Recipe names should follow consistent patterns to maintain clarity across the framework. Server recipes use the format \texttt{service-server.yaml}, monitor recipes use \texttt{service-monitor.yml}, and client recipes use \texttt{service-testtype.yaml}. The \texttt{service\_name} field must be identical across all recipes for the same service to enable automatic discovery. This field should be short, lowercase, and use hyphens to separate words.
+Recipe names should follow consistent patterns to maintain clarity across the framework. Server recipes use the format \texttt{service-server.yaml}, monitor recipes use \texttt{service- monitor.yml}, and client recipes use \texttt{service-testtype.yaml}. The \texttt{service\_name} field must be identical across all recipes for the same service to enable automatic discovery. This field should be short, lowercase, and use hyphens to separate words.
 
 Port selection requires careful consideration to avoid conflicts on shared compute nodes. The framework recommends using ports in the 8000 to 9000 range, which are typically available on HPC clusters. Services can also use dynamic port allocation by setting the port to zero in the startup script, though this requires parsing log files to determine the actual assigned port.
 
@@ -948,34 +941,11 @@ Analyzing performance across test scenarios reveals how workload characteristics
 
 Prometheus monitoring data collected during the stress test provides insight into system behavior over time. Data shows average generation throughput measured in tokens per second. After an initial ramp-up period, throughput stabilized around 300 tokens per second, demonstrating consistent performance throughout the 10-minute test duration. The relatively flat profile indicates efficient resource utilization without degradation over time.
 
-GPU cache usage percentage exhibited periodic fluctuations between near-zero and 0.014\% as shown in monitoring data, which reflects vLLM's dynamic cache management for the CPU-based deployment. Since the test ran on CPUs without GPUs, these values represent KV-cache operations in system memory rather than GPU memory. The low absolute values confirm that the opt-125m model with specified context lengths did not stress memory capacity.
+GPU cache usage percentage exhibited periodic fluctuations between near-zero and 0.014\% as shown in monitoring data, which reflects vLLM's dynamic cache management. These values confirm that the opt-125m model with specified context lengths did not stress memory capacity.
 
-Request queue depths remained low throughout testing, with running requests typically between 1 and 3 concurrent operations and waiting requests occasionally spiking to 5 during burst periods. These patterns confirm that the 8-core CPU allocation provided sufficient compute capacity to process incoming requests without building large backlogs. CPU utilization grew linearly from approximately 44 seconds to 345 seconds of accumulated CPU time over the test duration, indicating efficient CPU usage at roughly 75\% utilization across the allocated cores.
+Request queue depths remained low throughout testing, with running requests typically between 1 and 3 concurrent operations and waiting requests occasionally spiking to 5 during burst periods. These patterns confirm that the CPU allocation provided sufficient compute capacity to process incoming requests without building large backlogs. 
 
-%==============================================================================
-\section{Future Improvements}
-%==============================================================================
 
-Based on development experience and user feedback, the following improvements are planned:
-
-\subsection{Short-Term Enhancements}
-
-\begin{itemize}
-    \item \textbf{Multi-Node Server Deployment}: Support for distributed inference across multiple nodes using tensor parallelism.
-    \item \textbf{Grafana Integration}: Add Grafana dashboards for visualization alongside Prometheus.
-    \item \textbf{Alerting}: Configure Prometheus alerting for service health monitoring.
-    \item \textbf{Result Aggregation}: Automatic aggregation and comparison of benchmark runs.
-\end{itemize}
-
-\subsection{Long-Term Goals}
-
-\begin{itemize}
-    \item \textbf{Web Dashboard}: Browser-based UI for monitoring and management.
-    \item \textbf{Additional Backends}: Support for other inference servers (TensorRT-LLM, text-generation-inference).
-    \item \textbf{CI/CD Integration}: Automated deployment and testing pipelines.
-    \item \textbf{Cost Tracking}: Integration with SLURM accounting for resource usage reports.
-    \item \textbf{Auto-Scaling}: Dynamic scaling based on request queue depth.
-\end{itemize}
 
 %==============================================================================
 \section{Conclusion}
@@ -985,9 +955,8 @@ Our application provides a comprehensive solution for deploying, monitoring, and
 
 The framework has been successfully deployed and tested on the MeluXina supercomputer, demonstrating its effectiveness for managing AI inference workloads in production HPC environments. Comprehensive benchmarking experiments validated the framework's capabilities across diverse workload scenarios, processing over 7,200 inference requests with 100\% success rates. Performance results showed that the framework efficiently handles workloads ranging from simple validation tests to high-throughput scenarios processing 12 requests per second, as well as memory-intensive long-context inference with multi-kilobyte prompts.
 
-Time-series monitoring data confirmed consistent throughput and resource utilization throughout extended test runs, demonstrating the framework's reliability for sustained production workloads. The declarative recipe system proved effective for defining reproducible benchmarks with varying concurrency levels, request sizes, and workload patterns. Automatic service discovery successfully eliminated manual endpoint configuration across all test scenarios, enabling seamless coordination between server, monitor, and client modules.
+Time-series monitoring data confirmed consistent throughput and resource utilization throughout extended test runs, demonstrating the framework's reliability for sustained production workloads. The declarative recipe system proved effective for defining reproducible benchmarks with varying concurrency levels, request sizes, and workload patterns.
 
-Future work will focus on expanding the framework's capabilities to support multi-node distributed inference, additional inference backends beyond vLLM, and enhanced visualization through Grafana integration. The framework provides a solid foundation for research groups and HPC centers seeking to deploy AI inference services with robust monitoring and standardized benchmarking capabilities.
 
 
 \end{document}
