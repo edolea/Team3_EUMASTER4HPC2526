@@ -2,6 +2,16 @@
 
 A unified framework for deploying, monitoring, and benchmarking AI services on HPC clusters with SLURM.
 
+Team Members:
+
+- Tommaso Crippa
+- Edoardo Leali
+- Emanuele Caruso
+
+Supervisor:
+
+- Dr Farouk Mansouri
+
 ## Overview
 
 AI-Factories provides three integrated modules:
@@ -11,6 +21,16 @@ AI-Factories provides three integrated modules:
 - **Client**: Run benchmarks against deployed services
 
 All operations are orchestrated through SLURM, deploying containerized services via Apptainer.
+
+## Documentation
+
+Inside the `docs/` directory, you will find:
+
+- **`presentation/`**: Presentation for project overview
+
+- **`report/`**: Technical report with detailed implementation and analysis
+
+- **`video/`**: Video demonstration of application
 
 ## Getting Started on MeluXina
 
